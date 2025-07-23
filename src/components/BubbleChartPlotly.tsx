@@ -1,4 +1,3 @@
-import React from "react";
 import Plot from "react-plotly.js";
 import type { ChartDataPoint, OptionType } from "../types/bubbleData";
 import { TAU_COLORS } from "../types/bubbleData";
@@ -158,16 +157,16 @@ export function BubbleChartPlotly({ data, title, tauGroupsInfo }: BubbleChartPlo
 			font: { size: 16 },
 		},
 		xaxis: {
-			title: "Date",
+			title: { text: "Date" },
 			type: "date" as const,
 		},
 		yaxis: {
-			title: "Bubble Estimate",
+			title: { text: "Bubble Estimate" },
 			side: "left" as const,
 			autorange: true,
 		},
 		yaxis2: {
-			title: "Stock Price ($)",
+			title: { text: "Stock Price ($)" },
 			side: "right" as const,
 			overlaying: "y",
 		},
@@ -186,7 +185,7 @@ export function BubbleChartPlotly({ data, title, tauGroupsInfo }: BubbleChartPlo
 	const config = {
 		responsive: true,
 		displayModeBar: true,
-		modeBarButtonsToRemove: ["lasso2d", "select2d"],
+		modeBarButtonsToRemove: ["lasso2d", "select2d"] as any,
 		displaylogo: false,
 	};
 
