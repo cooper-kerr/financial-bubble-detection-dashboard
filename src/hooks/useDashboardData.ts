@@ -1,0 +1,175 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+	BubbleData,
+	ChartDataPoint,
+	OptionType,
+	StockCode,
+} from "../types/bubbleData";
+import {
+	getDateRange,
+	loadBubbleData,
+	transformDataForChart,
+} from "../utils/dataLoader";
+
+interface DashboardState {
+	selectedStock: StockCode;
+	startDate: Date | null;
+	endDate: Date | null;
+	bubbleData: BubbleData | null;
+	loading: boolean;
+	error: string | null;
+}
+
+export function useDashboardData() {
+	const [state, setState] = useState<DashboardState>({
+		selectedStock: "SPX",
+		startDate: null,
+		endDate: null,
+		bubbleData: null,
+		loading: false,
+		error: null,
+	});
+
+	// Ref to store timeout for debouncing date changes
+	const dateChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+	// Load data when stock changes
+	useEffect(() => {
+		let isCancelled = false;
+
+		const loadData = async () => {
+			// Show loading and fetch data
+			setState((prev) => ({ ...prev, loading: true, error: null }));
+
+			try {
+				const data = await loadBubbleData(state.selectedStock);
+
+				// Check if component is still mounted and request is still valid
+				if (isCancelled) return;
+
+				const dateRange = getDateRange(data);
+
+				setState((prev) => ({
+					...prev,
+					bubbleData: data,
+					loading: false,
+					// Set initial date range to full range if not already set
+					startDate: prev.startDate || dateRange.min,
+					endDate: prev.endDate || dateRange.max,
+				}));
+			} catch (error) {
+				if (isCancelled) return;
+
+				setState((prev) => ({
+					...prev,
+					loading: false,
+					error: error instanceof Error ? error.message : "Failed to load data",
+				}));
+			}
+		};
+
+		loadData();
+
+		// Cleanup function to cancel the request if component unmounts or stock changes
+		return () => {
+			isCancelled = true;
+		};
+	}, [state.selectedStock]);
+
+	// Cleanup timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (dateChangeTimeoutRef.current) {
+				clearTimeout(dateChangeTimeoutRef.current);
+			}
+		};
+	}, []);
+
+	const setSelectedStock = useCallback((stock: StockCode) => {
+		setState((prev) => ({ ...prev, selectedStock: stock }));
+	}, []);
+
+	const setDateRange = useCallback(
+		(startDate: Date | null, endDate: Date | null) => {
+			// Clear existing timeout
+			if (dateChangeTimeoutRef.current) {
+				clearTimeout(dateChangeTimeoutRef.current);
+			}
+
+			// Debounce date changes to prevent excessive re-renders
+			dateChangeTimeoutRef.current = setTimeout(() => {
+				setState((prev) => ({ ...prev, startDate, endDate }));
+			}, 100); // 100ms debounce
+		},
+		[],
+	);
+
+	const resetDateRange = useCallback(() => {
+		if (state.bubbleData) {
+			const dateRange = getDateRange(state.bubbleData);
+			setState((prev) => ({
+				...prev,
+				startDate: dateRange.min,
+				endDate: dateRange.max,
+			}));
+		}
+	}, [state.bubbleData]);
+
+	// Memoize chart data transformations for each option type
+	const chartDataMemo = useMemo(() => {
+		if (!state.bubbleData) {
+			return {
+				put: [],
+				call: [],
+				combined: [],
+			};
+		}
+
+		return {
+			put: transformDataForChart(
+				state.bubbleData,
+				"put",
+				state.startDate || undefined,
+				state.endDate || undefined,
+			),
+			call: transformDataForChart(
+				state.bubbleData,
+				"call",
+				state.startDate || undefined,
+				state.endDate || undefined,
+			),
+			combined: transformDataForChart(
+				state.bubbleData,
+				"combined",
+				state.startDate || undefined,
+				state.endDate || undefined,
+			),
+		};
+	}, [state.bubbleData, state.startDate, state.endDate]);
+
+	const getChartData = useCallback(
+		(optionType: OptionType): ChartDataPoint[] => {
+			return chartDataMemo[optionType];
+		},
+		[chartDataMemo],
+	);
+
+	const getAvailableDateRange = useCallback(() => {
+		if (!state.bubbleData) return null;
+		return getDateRange(state.bubbleData);
+	}, [state.bubbleData]);
+
+	return {
+		selectedStock: state.selectedStock,
+		startDate: state.startDate,
+		endDate: state.endDate,
+		bubbleData: state.bubbleData,
+		loading: state.loading,
+		error: state.error,
+		setSelectedStock,
+		setDateRange,
+		resetDateRange,
+		getChartData,
+		getAvailableDateRange,
+	};
+}
