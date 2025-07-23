@@ -168,7 +168,7 @@ export function BubbleChartPlotly({ data, title, tauGroupsInfo }: BubbleChartPlo
 		yaxis2: {
 			title: { text: "Stock Price ($)" },
 			side: "right" as const,
-			overlaying: "y",
+			overlaying: "y" as const,
 		},
 		legend: {
 			x: 0.02,
