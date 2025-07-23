@@ -43,13 +43,15 @@ export const BubbleChart = React.memo(function BubbleChart({
 		const tau2Estimates = data.map((d) => d.tau2.mu);
 		const tau3Estimates = data.map((d) => d.tau3.mu);
 
-		// Prepare confidence band data
+		// Prepare confidence band data for area charts
 		const tau1Upper = data.map((d) => d.tau1.ub);
 		const tau1Lower = data.map((d) => d.tau1.lb);
 		const tau2Upper = data.map((d) => d.tau2.ub);
 		const tau2Lower = data.map((d) => d.tau2.lb);
 		const tau3Upper = data.map((d) => d.tau3.ub);
 		const tau3Lower = data.map((d) => d.tau3.lb);
+
+
 
 		return {
 			backgroundColor: "transparent",
@@ -218,8 +220,6 @@ export const BubbleChart = React.memo(function BubbleChart({
 					type: "value",
 					name: "Bubble Estimate",
 					position: "left",
-					min: -0.5,
-					max: 1.5,
 				},
 				{
 					type: "value",
@@ -228,24 +228,38 @@ export const BubbleChart = React.memo(function BubbleChart({
 				},
 			],
 			series: [
-				// Tau Group 1 confidence band
+				// Tau Group 1 confidence band - upper bound
 				{
-					name: "Tau 1 Confidence",
+					name: "CI τ1",
 					type: "line",
-					data: [
-						...tau1Lower.map((val, idx) => [dates[idx], val]),
-						...tau1Upper
-							.slice()
-							.reverse()
-							.map((val, idx) => [dates[dates.length - 1 - idx], val]),
-					],
-					lineStyle: { opacity: 0 },
-					symbol: "none",
-					areaStyle: {
-						color: "rgba(31, 119, 180, 0.15)",
+					data: tau1Upper,
+					lineStyle: {
+						opacity: 0,
 					},
+					areaStyle: {
+						color: "rgba(31, 119, 180, 0.3)",
+					},
+					stack: "tau1",
+					symbol: "none",
+					yAxisIndex: 0,
+					z: 1,
+				},
+				// Tau Group 1 confidence band - lower bound
+				{
+					name: "CI τ1 lower",
+					type: "line",
+					data: tau1Lower,
+					lineStyle: {
+						opacity: 0,
+					},
+					areaStyle: {
+						color: "rgba(255, 255, 255, 0)",
+					},
+					stack: "tau1",
+					symbol: "none",
 					yAxisIndex: 0,
 					showInLegend: false,
+					z: 1,
 				},
 				// Tau Group 1 main line
 				{
@@ -256,26 +270,43 @@ export const BubbleChart = React.memo(function BubbleChart({
 						color: TAU_COLORS.tau1,
 						width: 2,
 					},
-					yAxisIndex: 0,
-				},
-				// Tau Group 2 confidence band
-				{
-					name: "Tau 2 Confidence",
-					type: "line",
-					data: [
-						...tau2Lower.map((val, idx) => [dates[idx], val]),
-						...tau2Upper
-							.slice()
-							.reverse()
-							.map((val, idx) => [dates[dates.length - 1 - idx], val]),
-					],
-					lineStyle: { opacity: 0 },
 					symbol: "none",
-					areaStyle: {
-						color: "rgba(44, 160, 44, 0.15)",
+					yAxisIndex: 0,
+					z: 3,
+				},
+
+				// Tau Group 2 confidence band - upper bound
+				{
+					name: "CI τ2",
+					type: "line",
+					data: tau2Upper,
+					lineStyle: {
+						opacity: 0,
 					},
+					areaStyle: {
+						color: "rgba(44, 160, 44, 0.3)",
+					},
+					stack: "tau2",
+					symbol: "none",
+					yAxisIndex: 0,
+					z: 1,
+				},
+				// Tau Group 2 confidence band - lower bound
+				{
+					name: "CI τ2 lower",
+					type: "line",
+					data: tau2Lower,
+					lineStyle: {
+						opacity: 0,
+					},
+					areaStyle: {
+						color: "rgba(255, 255, 255, 0)",
+					},
+					stack: "tau2",
+					symbol: "none",
 					yAxisIndex: 0,
 					showInLegend: false,
+					z: 1,
 				},
 				// Tau Group 2 main line
 				{
@@ -285,27 +316,45 @@ export const BubbleChart = React.memo(function BubbleChart({
 					lineStyle: {
 						color: TAU_COLORS.tau2,
 						width: 2,
+						type: "dashed",
 					},
-					yAxisIndex: 0,
-				},
-				// Tau Group 3 confidence band
-				{
-					name: "Tau 3 Confidence",
-					type: "line",
-					data: [
-						...tau3Lower.map((val, idx) => [dates[idx], val]),
-						...tau3Upper
-							.slice()
-							.reverse()
-							.map((val, idx) => [dates[dates.length - 1 - idx], val]),
-					],
-					lineStyle: { opacity: 0 },
 					symbol: "none",
-					areaStyle: {
-						color: "rgba(255, 127, 14, 0.15)",
+					yAxisIndex: 0,
+					z: 3,
+				},
+
+				// Tau Group 3 confidence band - upper bound
+				{
+					name: "CI τ3",
+					type: "line",
+					data: tau3Upper,
+					lineStyle: {
+						opacity: 0,
 					},
+					areaStyle: {
+						color: "rgba(255, 127, 14, 0.3)",
+					},
+					stack: "tau3",
+					symbol: "none",
+					yAxisIndex: 0,
+					z: 1,
+				},
+				// Tau Group 3 confidence band - lower bound
+				{
+					name: "CI τ3 lower",
+					type: "line",
+					data: tau3Lower,
+					lineStyle: {
+						opacity: 0,
+					},
+					areaStyle: {
+						color: "rgba(255, 255, 255, 0)",
+					},
+					stack: "tau3",
+					symbol: "none",
 					yAxisIndex: 0,
 					showInLegend: false,
+					z: 1,
 				},
 				// Tau Group 3 main line
 				{
@@ -315,8 +364,11 @@ export const BubbleChart = React.memo(function BubbleChart({
 					lineStyle: {
 						color: TAU_COLORS.tau3,
 						width: 2,
+						type: "dashdot",
 					},
+					symbol: "none",
 					yAxisIndex: 0,
+					z: 3,
 				},
 				// Stock Price line
 				{
@@ -327,6 +379,7 @@ export const BubbleChart = React.memo(function BubbleChart({
 						color: TAU_COLORS.stockPrice,
 						width: 2,
 					},
+					symbol: "none",
 					yAxisIndex: 1,
 				},
 			],

@@ -47,7 +47,7 @@ export const DashboardControls = React.memo(function DashboardControls({
 					{/* Stock Selector */}
 					<div className="flex flex-col space-y-2">
 						<label htmlFor="stock-select" className="text-sm font-medium">
-							Stock Symbol
+							Stock
 						</label>
 						<Select
 							value={selectedStock}
