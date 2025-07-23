@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "react-datepicker/dist/react-datepicker.css";
 @import "tw-animate-css";
+@import "katex/dist/katex.min.css";
+@import "./styles/plotly-chart.css";
 
 @custom-variant dark (&:is(.dark *));
 

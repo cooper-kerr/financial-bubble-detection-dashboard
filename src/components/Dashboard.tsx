@@ -2,8 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
 import { useDashboardData } from "../hooks/useDashboardData";
-import { BubbleChart } from "./BubbleChart";
 import { DashboardControls } from "./DashboardControls";
+import { PlotlyBubbleChart } from "./PlotlyBubbleChart";
+import { PriceDifferenceChart } from "./PriceDifferenceChart";
 
 export function Dashboard() {
 	const {
@@ -17,6 +18,7 @@ export function Dashboard() {
 		setDateRange,
 		resetDateRange,
 		getChartData,
+		getPriceDifferenceData,
 		getAvailableDateRange,
 	} = useDashboardData();
 
@@ -55,29 +57,39 @@ export function Dashboard() {
 				{/* Charts Grid */}
 				<div className="space-y-6">
 					{/* Put Options Chart */}
-					<BubbleChart
+					<PlotlyBubbleChart
 						data={getChartData("put")}
 						optionType="put"
 						title="Put Options Bubble Estimates"
+						mathExpression="\hat{\Pi}_p(\tau)"
 						tauGroupsInfo={tauGroupsInfo}
 						loading={loading}
 					/>
 
 					{/* Call Options Chart */}
-					<BubbleChart
+					<PlotlyBubbleChart
 						data={getChartData("call")}
 						optionType="call"
 						title="Call Options Bubble Estimates"
+						mathExpression="\hat{\Pi}_c(\tau)"
 						tauGroupsInfo={tauGroupsInfo}
 						loading={loading}
 					/>
 
 					{/* Combined Options Chart */}
-					<BubbleChart
+					<PlotlyBubbleChart
 						data={getChartData("combined")}
 						optionType="combined"
 						title="Combined Options Bubble Estimates"
+						mathExpression="\hat{\Pi}_{cp}(\tau)"
 						tauGroupsInfo={tauGroupsInfo}
+						loading={loading}
+					/>
+
+					{/* Price Difference Chart */}
+					<PriceDifferenceChart
+						data={getPriceDifferenceData()}
+						title={`${selectedStock} - Price Comparison`}
 						loading={loading}
 					/>
 				</div>

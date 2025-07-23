@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import ReactECharts from "echarts-for-react";
 import { Hand, Info, Move, Square, ZoomIn, ZoomOut } from "lucide-react";
 import React, { useMemo, useRef } from "react";
+import { InlineMath } from "react-katex";
 import {
 	type ChartDataPoint,
 	type OptionType,
@@ -16,6 +17,7 @@ interface BubbleChartProps {
 	data: ChartDataPoint[];
 	optionType: OptionType;
 	title: string;
+	mathExpression?: string;
 	tauGroupsInfo: { mean: number }[];
 	loading?: boolean;
 }
@@ -23,6 +25,7 @@ interface BubbleChartProps {
 export const BubbleChart = React.memo(function BubbleChart({
 	data,
 	title,
+	mathExpression,
 	tauGroupsInfo,
 	loading,
 }: BubbleChartProps) {
@@ -53,13 +56,6 @@ export const BubbleChart = React.memo(function BubbleChart({
 
 		return {
 			backgroundColor: "transparent",
-			title: {
-				text: title,
-				left: "center",
-				textStyle: {
-					fontSize: 16,
-				},
-			},
 			tooltip: {
 				trigger: "axis",
 				axisPointer: {
@@ -124,7 +120,7 @@ export const BubbleChart = React.memo(function BubbleChart({
 					`τ ∈ (${tauGroupsInfo[0]?.mean || 0.25}±0.1)`,
 					`τ ∈ (${tauGroupsInfo[1]?.mean || 0.5}±0.15)`,
 					`τ ∈ (${tauGroupsInfo[2]?.mean || 1.0}±0.25)`,
-					"Stock Price",
+					"Adjusted Price",
 				],
 				bottom: "9%",
 			},
@@ -218,17 +214,18 @@ export const BubbleChart = React.memo(function BubbleChart({
 					type: "value",
 					name: "Bubble Estimate",
 					position: "left",
+					min: (value: { min: number }) => (value.min < 0 ? value.min : 0),
 				},
 				{
 					type: "value",
-					name: "Stock Price ($)",
+					name: "Adjusted Price",
 					position: "right",
 				},
 			],
 			series: [
 				// Tau Group 1 confidence band - upper bound
 				{
-					name: "CI τ1",
+					name: "CI τ1 upper",
 					type: "line",
 					data: tau1Upper,
 					lineStyle: {
@@ -240,11 +237,12 @@ export const BubbleChart = React.memo(function BubbleChart({
 					stack: "tau1",
 					symbol: "none",
 					yAxisIndex: 0,
+					showInLegend: false,
 					z: 1,
 				},
 				// Tau Group 1 confidence band - lower bound
 				{
-					name: "CI τ1 lower",
+					name: "CI τ1",
 					type: "line",
 					data: tau1Lower,
 					lineStyle: {
@@ -256,7 +254,6 @@ export const BubbleChart = React.memo(function BubbleChart({
 					stack: "tau1",
 					symbol: "none",
 					yAxisIndex: 0,
-					showInLegend: false,
 					z: 1,
 				},
 				// Tau Group 1 main line
@@ -287,7 +284,7 @@ export const BubbleChart = React.memo(function BubbleChart({
 
 				// Tau Group 2 confidence band - upper bound
 				{
-					name: "CI τ2",
+					name: "CI τ2 upper",
 					type: "line",
 					data: tau2Upper,
 					lineStyle: {
@@ -299,11 +296,12 @@ export const BubbleChart = React.memo(function BubbleChart({
 					stack: "tau2",
 					symbol: "none",
 					yAxisIndex: 0,
+					showInLegend: false,
 					z: 1,
 				},
 				// Tau Group 2 confidence band - lower bound
 				{
-					name: "CI τ2 lower",
+					name: "CI τ2",
 					type: "line",
 					data: tau2Lower,
 					lineStyle: {
@@ -315,7 +313,6 @@ export const BubbleChart = React.memo(function BubbleChart({
 					stack: "tau2",
 					symbol: "none",
 					yAxisIndex: 0,
-					showInLegend: false,
 					z: 1,
 				},
 				// Tau Group 2 main line
@@ -347,7 +344,7 @@ export const BubbleChart = React.memo(function BubbleChart({
 
 				// Tau Group 3 confidence band - upper bound
 				{
-					name: "CI τ3",
+					name: "CI τ3 upper",
 					type: "line",
 					data: tau3Upper,
 					lineStyle: {
@@ -359,11 +356,12 @@ export const BubbleChart = React.memo(function BubbleChart({
 					stack: "tau3",
 					symbol: "none",
 					yAxisIndex: 0,
+					showInLegend: false,
 					z: 1,
 				},
 				// Tau Group 3 confidence band - lower bound
 				{
-					name: "CI τ3 lower",
+					name: "CI τ3",
 					type: "line",
 					data: tau3Lower,
 					lineStyle: {
@@ -375,7 +373,6 @@ export const BubbleChart = React.memo(function BubbleChart({
 					stack: "tau3",
 					symbol: "none",
 					yAxisIndex: 0,
-					showInLegend: false,
 					z: 1,
 				},
 				// Tau Group 3 main line
@@ -404,9 +401,9 @@ export const BubbleChart = React.memo(function BubbleChart({
 					yAxisIndex: 0,
 					z: 3,
 				},
-				// Stock Price line
+				// Adjusted Price line
 				{
-					name: "Stock Price",
+					name: "Adjusted Price",
 					type: "line",
 					data: stockPrices,
 					smooth: true,
@@ -430,7 +427,7 @@ export const BubbleChart = React.memo(function BubbleChart({
 				},
 			],
 		};
-	}, [data, tauGroupsInfo, title, theme]);
+	}, [data, tauGroupsInfo, theme]);
 
 	// Handle restore button click to reset zoom
 	const handleRestore = () => {
@@ -463,6 +460,18 @@ export const BubbleChart = React.memo(function BubbleChart({
 	return (
 		<Card>
 			<CardContent className="p-4">
+				{/* Chart Title with KaTeX */}
+				<div className="text-center mb-4">
+					<h3 className="text-lg font-semibold mb-2">
+						{title}
+						{mathExpression && (
+							<span className="ml-2">
+								<InlineMath math={mathExpression} />
+							</span>
+						)}
+					</h3>
+				</div>
+
 				{/* Instructions Panel */}
 				<div className="mb-4 p-4 bg-muted/50 rounded-lg border">
 					<h4 className="font-semibold mb-3 flex items-center gap-2">

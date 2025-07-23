@@ -3,11 +3,15 @@ import type {
 	BubbleData,
 	ChartDataPoint,
 	OptionType,
+	PriceDifferenceDataPoint,
+	RegularPriceData,
 	StockCode,
 } from "../types/bubbleData";
 import {
+	calculatePriceDifferences,
 	getDateRange,
 	loadBubbleData,
+	loadRegularPriceData,
 	transformDataForChart,
 } from "../utils/dataLoader";
 
@@ -16,6 +20,7 @@ interface DashboardState {
 	startDate: Date | null;
 	endDate: Date | null;
 	bubbleData: BubbleData | null;
+	regularPriceData: RegularPriceData[] | null;
 	loading: boolean;
 	error: string | null;
 }
@@ -26,6 +31,7 @@ export function useDashboardData() {
 		startDate: null,
 		endDate: null,
 		bubbleData: null,
+		regularPriceData: null,
 		loading: false,
 		error: null,
 	});
@@ -42,16 +48,44 @@ export function useDashboardData() {
 			setState((prev) => ({ ...prev, loading: true, error: null }));
 
 			try {
-				const data = await loadBubbleData(state.selectedStock);
+				// Load both bubble data and regular price data in parallel
+				const [data, regularData] = await Promise.allSettled([
+					loadBubbleData(state.selectedStock),
+					loadRegularPriceData(state.selectedStock),
+				]);
 
 				// Check if component is still mounted and request is still valid
 				if (isCancelled) return;
 
-				const dateRange = getDateRange(data);
+				// Handle bubble data result
+				if (data.status === "rejected") {
+					throw new Error(`Failed to load bubble data: ${data.reason}`);
+				}
+
+				const dateRange = getDateRange(data.value);
+
+				// Handle regular price data result (optional, don't fail if not available)
+				const regularPriceData =
+					regularData.status === "fulfilled" ? regularData.value : null;
+				if (regularData.status === "rejected") {
+					console.error(
+						`Regular price data failed to load for ${state.selectedStock}:`,
+						regularData.reason,
+					);
+				} else if (regularPriceData) {
+					console.log(
+						`Regular price data loaded successfully for ${state.selectedStock}:`,
+						{
+							count: regularPriceData.length,
+							sample: regularPriceData.slice(0, 2),
+						},
+					);
+				}
 
 				setState((prev) => ({
 					...prev,
-					bubbleData: data,
+					bubbleData: data.value,
+					regularPriceData,
 					loading: false,
 					// Set initial date range to full range if not already set
 					startDate: prev.startDate || dateRange.min,
@@ -154,6 +188,23 @@ export function useDashboardData() {
 		[chartDataMemo],
 	);
 
+	const getPriceDifferenceData = useCallback((): PriceDifferenceDataPoint[] => {
+		if (!state.bubbleData || !state.regularPriceData) {
+			return [];
+		}
+		return calculatePriceDifferences(
+			state.bubbleData,
+			state.regularPriceData,
+			state.startDate || undefined,
+			state.endDate || undefined,
+		);
+	}, [
+		state.bubbleData,
+		state.regularPriceData,
+		state.startDate,
+		state.endDate,
+	]);
+
 	const getAvailableDateRange = useCallback(() => {
 		if (!state.bubbleData) return null;
 		return getDateRange(state.bubbleData);
@@ -164,12 +215,14 @@ export function useDashboardData() {
 		startDate: state.startDate,
 		endDate: state.endDate,
 		bubbleData: state.bubbleData,
+		regularPriceData: state.regularPriceData,
 		loading: state.loading,
 		error: state.error,
 		setSelectedStock,
 		setDateRange,
 		resetDateRange,
 		getChartData,
+		getPriceDifferenceData,
 		getAvailableDateRange,
 	};
 }

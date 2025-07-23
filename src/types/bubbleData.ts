@@ -20,6 +20,7 @@ export interface TimeSeriesDataPoint {
 	date: string;
 	stock_prices: {
 		adjusted: number;
+		regular?: number; // Optional regular price for comparison
 	};
 	bubble_estimates: {
 		daily_grouped: DailyGroupedData[];
@@ -53,6 +54,21 @@ export interface ChartDataPoint {
 	tau1: BubbleEstimate;
 	tau2: BubbleEstimate;
 	tau3: BubbleEstimate;
+}
+
+// New interface for regular price data
+export interface RegularPriceData {
+	date: string;
+	price: number;
+}
+
+// New interface for price difference chart data
+export interface PriceDifferenceDataPoint {
+	date: string;
+	adjustedPrice: number;
+	regularPrice: number;
+	difference: number;
+	percentageDifference: number;
 }
 
 export const STOCK_LIST = [
