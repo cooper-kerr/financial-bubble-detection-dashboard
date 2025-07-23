@@ -105,14 +105,6 @@ export const DashboardControls = React.memo(function DashboardControls({
 							Reset Range
 						</Button>
 					</div>
-
-					{/* Loading Indicator */}
-					{loading && (
-						<div className="flex items-center text-muted-foreground">
-							<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-							Loading...
-						</div>
-					)}
 				</div>
 
 				{/* Date Range Display */}

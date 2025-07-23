@@ -24,6 +24,7 @@ interface BubbleChartProps {
 
 export const BubbleChart = React.memo(function BubbleChart({
 	data,
+	optionType,
 	title,
 	mathExpression,
 	tauGroupsInfo,
@@ -443,7 +444,28 @@ export const BubbleChart = React.memo(function BubbleChart({
 
 	// Handle loading state
 	if (loading) {
-		return <LoadingSpinner message="Loading chart data..." />;
+		return (
+			<Card>
+				<CardContent className="p-4">
+					{/* Chart Title with KaTeX */}
+					<div className="text-center mb-4">
+						<h3 className="text-lg font-semibold mb-2">
+							{title}
+							{mathExpression && (
+								<span className="ml-2">
+									<InlineMath math={mathExpression} />
+								</span>
+							)}
+						</h3>
+					</div>
+					<LoadingSpinner
+						message={`Loading ${optionType} options bubble estimates...`}
+						className="h-96"
+						inline
+					/>
+				</CardContent>
+			</Card>
+		);
 	}
 
 	// Handle no data state

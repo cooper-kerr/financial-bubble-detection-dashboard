@@ -8,6 +8,7 @@ import {
 	type OptionType,
 	TAU_COLORS,
 } from "../types/bubbleData";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 interface PlotlyBubbleChartProps {
 	data: ChartDataPoint[];
@@ -20,6 +21,7 @@ interface PlotlyBubbleChartProps {
 
 export const PlotlyBubbleChart = React.memo(function PlotlyBubbleChart({
 	data,
+	optionType,
 	title,
 	mathExpression,
 	tauGroupsInfo,
@@ -300,9 +302,22 @@ export const PlotlyBubbleChart = React.memo(function PlotlyBubbleChart({
 		return (
 			<Card>
 				<CardContent className="p-4">
-					<div className="flex items-center justify-center h-96">
-						<div className="text-lg">Loading...</div>
+					{/* Chart Title with KaTeX */}
+					<div className="text-center mb-4">
+						<h3 className="text-lg font-semibold mb-2">
+							{title}
+							{mathExpression && (
+								<span className="ml-2">
+									<InlineMath math={mathExpression} />
+								</span>
+							)}
+						</h3>
 					</div>
+					<LoadingSpinner
+						message={`Loading ${optionType} options bubble estimates...`}
+						className="h-96"
+						inline
+					/>
 				</CardContent>
 			</Card>
 		);

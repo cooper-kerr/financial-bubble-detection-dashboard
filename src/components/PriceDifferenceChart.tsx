@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import React, { useMemo } from "react";
 import Plot from "react-plotly.js";
 import type { PriceDifferenceDataPoint } from "../types/bubbleData";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 interface PriceDifferenceChartProps {
 	data: PriceDifferenceDataPoint[];
@@ -155,12 +156,15 @@ export const PriceDifferenceChart = React.memo(function PriceDifferenceChart({
 				<CardContent className="p-4">
 					<div className="text-center mb-4">
 						<h3 className="text-lg font-semibold mb-2">{title}</h3>
+						<p className="text-sm text-muted-foreground">
+							Comparison between raw prices and split-adjusted prices
+						</p>
 					</div>
-					<div className="flex items-center justify-center h-96">
-						<div className="text-muted-foreground">
-							Loading price difference data...
-						</div>
-					</div>
+					<LoadingSpinner
+						message="Loading price difference data..."
+						className="h-96"
+						inline
+					/>
 				</CardContent>
 			</Card>
 		);

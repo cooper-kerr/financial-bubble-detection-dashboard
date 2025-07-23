@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import viteReact from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 import { resolve } from 'node:path'
@@ -9,6 +10,7 @@ export default defineConfig({
   plugins: [
     TanStackRouterVite({ autoCodeSplitting: true }),
     viteReact(),
+    tailwindcss(),
   ],
   server: {
     allowedHosts: ['4c18614df7bc.ngrok-free.app'],
