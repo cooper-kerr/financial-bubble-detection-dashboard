@@ -1,0 +1,26 @@
+name: Daily Stock Data Update
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # Daily at 6 PM UTC
+  workflow_dispatch:
+
+jobs:
+  update_stock_data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r scripts-python/requirements.txt
+
+      - name: Run stock data pipeline
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: python scripts-python/main.py
