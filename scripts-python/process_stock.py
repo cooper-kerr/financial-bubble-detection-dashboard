@@ -1,45 +1,51 @@
-def process_stock(ticker_symbol, output_dir="data"):
-    import yfinance as yf
-    import numpy as np
-    import pandas as pd
-    from datetime import datetime
-    from fredapi import Fred
-    from datetime import datetime, timedelta
-    import os
-    
+import yfinance as yf
+import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
+from fredapi import Fred
+import os
+
+def process_stock(ticker_symbol, output_dir="data", fred_api_key=None):
+    """
+    Fetches historical stock data, treasury data, and options data,
+    processes it, and saves it to CSV files.
+    """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    if fred_api_key is None:
+        print("FRED API key not provided. Skipping treasury data.")
+        return
+
     start_date = "1996-01-01"
     end_date = datetime.now().strftime("%Y-%m-%d")
+    
+    print(f"Processing stock: {ticker_symbol}")
+
+    # -------------------- Historical Data --------------------
     ticker = yf.Ticker(ticker_symbol)
-    
-    start_date = "1996-01-01"
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    
     historical_data = ticker.history(start=start_date, end=end_date)
     closing_prices = historical_data[['Close']].reset_index()
     closing_prices.rename(columns={'Date': 'date', 'Close': 'snp'}, inplace=True)
     closing_prices['date'] = pd.to_datetime(closing_prices['date']).dt.tz_localize(None)
     indexdata_processed = closing_prices
-    #--------------------Treasury Data
-    api_key = '2b98a445dad54c993b549509cc6652c8'
-    fred = Fred(api_key=api_key)
+
+    # -------------------- Treasury Data --------------------
+    fred = Fred(api_key=fred_api_key)
     series_id = "DGS1MO"
     data = fred.get_series(series_id, start_date, end_date)
     
     df = pd.DataFrame(data, columns=["tr"])
     df.index.name = 'date'
     df = df.reset_index()
-    df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)  # tz-naive
-    df['tr'] = df['tr']/100
-    #--------------Options Data------------
-    ticker_symbol = "^SPX"
-    ticker = yf.Ticker(ticker_symbol)
-    expirations = ticker.options
+    df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
+    df['tr'] = df['tr'] / 100
+
+    # -------------- Options Data ------------
+    options_ticker = yf.Ticker(ticker_symbol)
+    expirations = options_ticker.options
     today = datetime.now()
     
-    # include options expiring within the next 365 days
     expirations_this_year = [
         date for date in expirations
         if today <= datetime.strptime(date, '%Y-%m-%d') <= today + timedelta(days=365)
@@ -48,7 +54,7 @@ def process_stock(ticker_symbol, output_dir="data"):
     all_options = pd.DataFrame()
     for expiration_date in expirations_this_year:
         try:
-            options = ticker.option_chain(expiration_date)
+            options = options_ticker.option_chain(expiration_date)
             
             calls = options.calls.copy()
             calls['exdate'] = pd.to_datetime(expiration_date)
@@ -63,6 +69,10 @@ def process_stock(ticker_symbol, output_dir="data"):
         except Exception as e:
             print(f"Error fetching options data for {expiration_date}: {e}")
     
+    if all_options.empty:
+        print(f"No options data found for {ticker_symbol}")
+        return
+
     all_options = all_options.rename(columns={'lastTradeDate': 'date'})
     all_options = all_options[['date', 'exdate', 'cp_flag', 'strike', 'bid', 'ask',
                                'volume', 'openInterest', 'impliedVolatility']]
@@ -71,20 +81,15 @@ def process_stock(ticker_symbol, output_dir="data"):
     all_options['date'] = all_options['date'].dt.date
     cols_to_convert = ['strike', 'bid', 'ask', 'volume', 'openInterest', 'impliedVolatility']
     all_options[cols_to_convert] = all_options[cols_to_convert].apply(pd.to_numeric, errors='coerce')
-    all_options['strike'] = all_options['strike']/1000
+    all_options['strike'] = all_options['strike'] / 1000
     all_options = all_options[all_options['volume'] > 0]
-    # 2. Best bid or offer at least $0.05
     all_options = all_options[(all_options['bid'] >= 0.05) | (all_options['ask'] >= 0.05)]
     all_options['date'] = pd.to_datetime(all_options['date']).dt.tz_localize(None)
     all_options['exdate'] = pd.to_datetime(all_options['exdate']).dt.tz_localize(None)
-    # 3. Time-to-maturity > 8 days and <= 1 year
     all_options['tau'] = (all_options['exdate'] - all_options['date']).dt.days
     all_options = all_options[(all_options['tau'] > 8) & (all_options['tau'] <= 365)]
-    # all_options already has tau in days
-    # Optional: create tau in years for grouping
-    all_options['tau_years'] = all_options['tau'] / 365  # 252 trading days ≈ 1 year
+    all_options['tau_years'] = all_options['tau'] / 365
     
-    # Define maturity groups using tau_years
     def classify_maturity_group(tau_years):
         if tau_years <= 0.25:
             return '0-3M'
@@ -95,11 +100,9 @@ def process_stock(ticker_symbol, output_dir="data"):
     
     all_options['maturity_group'] = all_options['tau_years'].apply(classify_maturity_group)
     
-    # Filter out groups with fewer than 3 observations per date, cp_flag, maturity_group
     group_counts = all_options.groupby(['date', 'cp_flag', 'maturity_group']).size().reset_index(name='n_obs')
     valid_groups = group_counts[group_counts['n_obs'] >= 3]
     
-    # Keep only valid groups
     all_options = all_options.merge(
         valid_groups[['date', 'cp_flag', 'maturity_group']], 
         on=['date', 'cp_flag', 'maturity_group'], 
@@ -120,18 +123,16 @@ def process_stock(ticker_symbol, output_dir="data"):
     df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
     
     index_filtered = indexdata_processed[
-        (indexdata_processed['date'] >= start_date) &
-        (indexdata_processed['date'] <= end_date)
+        (indexdata_processed['date'] >= pd.to_datetime(start_date)) &
+        (indexdata_processed['date'] <= pd.to_datetime(end_date))
     ]
     
-    # Merge
     index_tr = pd.merge(index_filtered, df[['date', 'tr']], on='date', how='left')
     index_tr = index_tr.rename(columns={'snp': 'price'})
     index_tr_filled = index_tr.copy()
     index_tr_filled['tr'] = index_tr_filled['tr'].ffill()
-    indexopt = pd.merge(cleancalldata, index_tr, on='date', how='inner')
+    indexopt = pd.merge(cleancalldata, index_tr_filled, on='date', how='inner')
     
-    # Step 2: Keep only rows where 'tau' is not null
     indexopt = indexopt[indexopt['tau'].notna()]
     
     indexopt = indexopt[[
@@ -146,105 +147,65 @@ def process_stock(ticker_symbol, output_dir="data"):
         'volume',
         'impliedVolatility'
     ]].rename(columns={'impl_volatility': 'iv'})
-    indexopt['date'] = pd.to_datetime(indexopt['date'], format='%Y%m%d')
+    indexopt['date'] = pd.to_datetime(indexopt['date'])
     indexopt['tr'] = indexopt['tr'].ffill()
     
     indexopt['money'] = np.log(indexopt['strike'] * np.exp(-indexopt['tr'] * indexopt['tau'] / 252) / indexopt['price'])
     indexopt['money2'] = indexopt['strike'] / indexopt['price']
     
-    
     indexopt = indexopt.sort_values(by=['date', 'cp_flag', 'exdate', 'strike']).reset_index(drop=True)
     indexopt2 = indexopt
-    indexopt2['taurank0'] = indexopt2.groupby(['date', 'cp_flag'])['tau'] \
-                                     .rank(method='dense')
+    indexopt2['taurank0'] = indexopt2.groupby(['date', 'cp_flag'])['tau'].rank(method='dense')
     
-    # Step 2: Filter out rows where tau is missing
     indexopt3 = indexopt2[indexopt2['tau'].notna()]
     
-    # Step 3: Select specific columns and sort
     indexopt3 = indexopt3[[
         'date', 'cp_flag', 'exdate', 'tau', 'strike', 'price', 'tr', 
         'money', 'callprice', 'volume', 'impliedVolatility'
     ]].sort_values(by=['date', 'cp_flag', 'tau', 'strike']).reset_index(drop=True)
-    indexopt3 = indexopt2[indexopt2['tau'].notna()][[
-        'date', 'cp_flag', 'exdate', 'tau', 'strike', 'price', 'tr',
-        'money', 'callprice', 'volume', 'impliedVolatility'
-    ]].sort_values(by=['date', 'cp_flag', 'tau', 'strike']).reset_index(drop=True)
     
     indexopt3['delta'] = np.nan
-    indexopt3['date'] = pd.to_datetime(indexopt3['date'], errors='coerce')
-    indexopt3['date'] = indexopt3['date'].dt.strftime('%d%b%Y')
-    indexopt3['exdate'] = pd.to_datetime(indexopt3['exdate'], errors='coerce')
-    indexopt3['exdate'] = indexopt3['exdate'].dt.strftime('%d%b%Y')
+    indexopt3['date'] = pd.to_datetime(indexopt3['date']).dt.strftime('%d%b%Y')
+    indexopt3['exdate'] = pd.to_datetime(indexopt3['exdate']).dt.strftime('%d%b%Y')
     
     indexopt3['strike'] = pd.to_numeric(indexopt3['strike'], errors='coerce')
     indexopt3['tau'] = pd.to_numeric(indexopt3['tau'], errors='coerce')
     indexopt3['impliedVolatility'] = pd.to_numeric(indexopt3['impliedVolatility'], errors='coerce')
     
-    
     from scipy.stats import norm
     
     def calculate_delta(S, K, tau, sigma, r, option_type):
-        """
-        Compute Black-Scholes Delta for a single option.
-        S = underlying price (scalar)
-        K = strike price (scalar)
-        tau = time to maturity in years (scalar)
-        sigma = implied volatility (scalar)
-        r = risk-free rate (scalar)
-        option_type = 'C' or 'P'
-        """
-        # Handle missing or invalid values
-        if pd.isna(S) or pd.isna(K) or pd.isna(tau) or pd.isna(sigma) or pd.isna(r):
+        if pd.isna(S) or pd.isna(K) or pd.isna(tau) or pd.isna(sigma) or pd.isna(r) or tau <= 0 or sigma <= 0:
             return np.nan
-        if tau <= 0 or sigma <= 0:
-            return np.nan
-    
-        # Black-Scholes d1
         d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * tau) / (sigma * np.sqrt(tau))
+        return norm.cdf(d1) if option_type.upper() == 'C' else norm.cdf(d1) - 1
     
-        # Call vs Put delta
-        if option_type.upper() == 'C':  
-            return norm.cdf(d1)
-        else:  
-            return norm.cdf(d1) - 1
-    
-    # --- Apply to your dataset (indexopt3) ---
-    # Convert tau from days → years (calendar, since tau is already exdate - date in days)
     indexopt3['tau_years'] = indexopt3['tau'] / 365
-    
-    # Ensure numeric types
     cols_to_num = ['price', 'strike', 'tau_years', 'impliedVolatility', 'tr']
     indexopt3[cols_to_num] = indexopt3[cols_to_num].apply(pd.to_numeric, errors='coerce')
     
-    # Calculate delta row-by-row
     indexopt3['delta'] = indexopt3.apply(
         lambda row: calculate_delta(
-            S=row['price'],                 # underlying price per date
-            K=row['strike'],                # strike
-            tau=row['tau_years'],           # tau in years
-            sigma=row['impliedVolatility'], # implied vol
-            r=row['tr'],                    # risk-free rate
-            option_type=row['cp_flag']      # call/put flag
+            S=row['price'],
+            K=row['strike'],
+            tau=row['tau_years'],
+            sigma=row['impliedVolatility'],
+            r=row['tr'],
+            option_type=row['cp_flag']
         ),
         axis=1
     )
     indexopt3 = indexopt3.drop(columns=['tau_years'])
     
     def has_min_calls_and_puts(group, min_count=3):
-        # Check each tau group inside the date
-        tau_groups = group.groupby('tau')
-        for _, tg in tau_groups:
-            cp_flags = tg['cp_flag']
-            num_calls = (cp_flags == 'C').sum()
-            num_puts = (cp_flags != 'C').sum()
-            if num_calls < min_count or num_puts < min_count:
+        for _, tg in group.groupby('tau'):
+            if (tg['cp_flag'] == 'C').sum() < min_count or (tg['cp_flag'] != 'C').sum() < min_count:
                 return False
         return True
-    indexopt3 =indexopt3.groupby('date').filter(has_min_calls_and_puts)
+
+    indexopt3 = indexopt3.groupby('date').filter(has_min_calls_and_puts)
     optcount = indexopt3.groupby('date').size().reset_index(name='count')
-    optcount['date'] = pd.to_datetime(optcount['date'], errors='coerce')
-    optcount['date'] = optcount['date'].dt.strftime('%d%b%Y')
+    optcount['date'] = pd.to_datetime(optcount['date']).dt.strftime('%d%b%Y')
     
     optcpstats = indexopt3.groupby(['date', 'cp_flag', 'tau']).agg(
         n=('date', 'count'),
@@ -255,11 +216,21 @@ def process_stock(ticker_symbol, output_dir="data"):
     ).reset_index()
     indexopt3.columns = ['dateraw','cp_flag','exdateraw','tauday','X','s','tr','money','oprice','volume','iv','deltachk']
     
+    yr1, yr2 = pd.to_datetime(start_date).year, pd.to_datetime(end_date).year
     filesource = f"optout_{ticker_symbol}"
-    yr1, yr2 = 1996,2023
-    save_folder = '/Users/cooperkerr/Desktop/Automation_Workflow/CSV'
-    os.makedirs(save_folder, exist_ok=True)
-    count_file = os.path.join(save_folder, f"{filesource}_{yr1}to{yr2}_count.csv")
-    data_file  = os.path.join(save_folder, f"{filesource}_{yr1}to{yr2}.csv")
+    count_file = os.path.join(output_dir, f"{filesource}_{yr1}to{yr2}_count.csv")
+    data_file  = os.path.join(output_dir, f"{filesource}_{yr1}to{yr2}.csv")
+    
     optcount.to_csv(count_file, index=False)
     indexopt3.to_csv(data_file, index=False)
+    
+    print(f"Saved data for {ticker_symbol} to {output_dir}")
+
+if __name__ == '__main__':
+    # This part is for standalone execution and testing
+    # You would need to set the FRED_API_KEY environment variable
+    fred_api_key = os.environ.get('FRED_API_KEY')
+    if fred_api_key:
+        process_stock('SPY', fred_api_key=fred_api_key)
+    else:
+        print("Please set the FRED_API_KEY environment variable to run this script.")
