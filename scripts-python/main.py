@@ -7,20 +7,23 @@ from utils.vercel_upload import upload_file
 
 def main():
     """
-    Orchestrates the entire data pipeline.
+    Orchestrates the entire data pipeline from data fetching to Vercel upload.
     """
     # Load configuration
-    with open('scripts-python/config.json', 'r') as f:
-        config = json.load(f)
+    try:
+        with open('scripts-python/config.json', 'r') as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        print("Error: config.json not found. Please ensure it exists in the 'scripts-python' directory.")
+        return
     
     stock_list = config.get("STOCK_LIST", [])
-    yr1 = config.get("START_YEAR", "1996")
-    yr2 = config.get("END_YEAR", "2023")
+    start_year = config.get("START_YEAR", "1996")
     
     # Get FRED API key from environment
     fred_api_key = os.environ.get('FRED_API_KEY')
     if not fred_api_key:
-        print("FRED_API_KEY environment variable not set. The pipeline will not run.")
+        print("Error: FRED_API_KEY environment variable not set. The pipeline will not run.")
         return
 
     # Define data directories
@@ -40,17 +43,34 @@ def main():
         print(f"\n{'='*50}")
         print(f"--- Processing Ticker: {ticker} ---")
         
-        # 1. Process stock data and create CSV files
-        process_stock(ticker, output_dir=csv_dir, fred_api_key=fred_api_key)
+        # 1. Process stock data: append new data to CSV files
+        process_stock(
+            ticker_symbol=ticker,
+            output_dir=csv_dir,
+            fred_api_key=fred_api_key,
+            start_year=start_year
+        )
         
-        # 2. Run MAT generator
-        run_mat_generator(ticker, yr1, yr2, input_dir=csv_dir, output_dir=mat_dir)
+        # 2. Run MAT generator on the potentially updated CSVs
+        run_mat_generator(
+            stockcode=ticker,
+            input_dir=csv_dir,
+            output_dir=mat_dir
+        )
         
         # 3. Convert MAT to JSON
-        mat_to_json(ticker, yr1, yr2, input_dir=mat_dir, output_dir=json_dir)
+        json_filepath = mat_to_json(
+            stockcode=ticker,
+            input_dir=mat_dir,
+            output_dir=json_dir
+        )
         
-        # 4. Upload JSON to Vercel
-        upload_file(ticker, data_dir=json_dir)
+        # 4. Upload JSON to Vercel, if a file was generated
+        if json_filepath:
+            upload_file(
+                json_path=json_filepath,
+                ticker=ticker
+            )
         
         print(f"--- Finished Ticker: {ticker} ---")
         print(f"{'='*50}\n")

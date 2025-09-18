@@ -1,14 +1,12 @@
 import os
 import requests
 
-def upload_file(ticker, data_dir="scripts-python/data"):
+def upload_file(json_path, ticker):
     """
-    Uploads a JSON file to Vercel Blob Storage.
+    Uploads a specified JSON file to Vercel Blob Storage.
     """
-    json_path = os.path.join(data_dir, f"{ticker}.json")
-
     if not os.path.exists(json_path):
-        print(f"JSON file not found for {ticker} at {json_path}")
+        print(f"JSON file not found at the provided path: {json_path}")
         return
 
     print(f"Uploading {json_path} to Vercel...")
@@ -17,6 +15,8 @@ def upload_file(ticker, data_dir="scripts-python/data"):
     if not vercel_token:
         print("VERCEL_TOKEN environment variable not set. Cannot upload.")
         return
+
+    file_name = os.path.basename(json_path)
 
     # ==============================================================================
     # TODO: UNCOMMENT AND EDIT THE FOLLOWING BLOCK TO ENABLE VERCEL UPLOAD
@@ -31,8 +31,9 @@ def upload_file(ticker, data_dir="scripts-python/data"):
     # --- START OF BLOCK TO EDIT ---
     #
     # try:
-    #     file_name = f"{ticker}.json"
-    #     api_url = f"https://blob.vercel-storage.com/{file_name}"
+    #     # The blob storage path can be organized by ticker
+    #     blob_path = f"data/{file_name}"
+    #     api_url = f"https://blob.vercel-storage.com/{blob_path}"
     #
     #     headers = {
     #         "Authorization": f"Bearer {vercel_token}",
@@ -42,12 +43,7 @@ def upload_file(ticker, data_dir="scripts-python/data"):
     #     }
     #
     #     with open(json_path, 'rb') as f:
-    #         response = requests.put(
-    #             api_url,
-    #             headers=headers,
-    #             data=f,
-    #             params={"pathname": f"data/{file_name}"} # Optional: organize in a subfolder
-    #         )
+    #         response = requests.put(api_url, headers=headers, data=f)
     #
     #     response.raise_for_status()
     #     blob_data = response.json()
@@ -71,10 +67,11 @@ def upload_file(ticker, data_dir="scripts-python/data"):
 if __name__ == '__main__':
     import sys
     if len(sys.argv) > 1:
-        ticker = sys.argv[1]
-        # To test, you need to set the VERCEL_TOKEN environment variable
-        # export VERCEL_TOKEN="your_token_here"
-        # python scripts-python/utils/vercel_upload.py AAPL
-        upload_file(ticker)
+        # This standalone execution now requires the full path to the JSON file
+        # and the ticker symbol as arguments.
+        # e.g., python scripts-python/utils/vercel_upload.py /path/to/your/bubble_data_AAPL_2023.json AAPL
+        json_file_path_arg = sys.argv[1]
+        ticker_arg = sys.argv[2] if len(sys.argv) > 2 else os.path.basename(json_file_path_arg).split('_')[2]
+        upload_file(json_file_path_arg, ticker_arg)
     else:
-        print("Please provide a ticker symbol.")
+        print("Please provide the full path to the JSON file and the ticker symbol.")

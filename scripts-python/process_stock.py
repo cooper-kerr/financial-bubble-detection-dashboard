@@ -5,10 +5,11 @@ from datetime import datetime, timedelta
 from fredapi import Fred
 import os
 
-def process_stock(ticker_symbol, output_dir="data", fred_api_key=None):
+def process_stock(ticker_symbol, output_dir="data", fred_api_key=None, start_year="1996"):
     """
     Fetches historical stock data, treasury data, and options data,
-    processes it, and saves it to CSV files.
+    processes it, and saves it to CSV files. Appends new data if
+    existing files are found.
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -17,14 +18,56 @@ def process_stock(ticker_symbol, output_dir="data", fred_api_key=None):
         print("FRED API key not provided. Skipping treasury data.")
         return
 
-    start_date = "1996-01-01"
+    # Simplified filenames
+    filesource = f"optout_{ticker_symbol}"
+    count_file = os.path.join(output_dir, f"{filesource}_count.csv")
+    data_file  = os.path.join(output_dir, f"{filesource}.csv")
+
+    start_date = f"{start_year}-01-01"
+    existing_data = None
+    existing_count_data = None
+
+    # Check for existing data and determine the new start date
+    if os.path.exists(data_file):
+        print(f"Existing data found for {ticker_symbol}. Reading last date.")
+        try:
+            existing_data = pd.read_csv(data_file)
+            if not existing_data.empty:
+                # Assuming the date column is named 'dateraw' and is in '%d%b%Y' format
+                last_date_str = existing_data['dateraw'].iloc[-1]
+                last_date = datetime.strptime(last_date_str, '%d%b%Y')
+                start_date = (last_date + timedelta(days=1)).strftime("%Y-%m-%d")
+                print(f"New start date for fetching data: {start_date}")
+            else:
+                print("Existing data file is empty. Fetching full history.")
+        except (KeyError, IndexError, pd.errors.EmptyDataError, ValueError) as e:
+            print(f"Could not read or parse date from existing data file, will fetch full history. Error: {e}")
+            existing_data = None # Reset to be safe
+
+        if os.path.exists(count_file):
+            try:
+                existing_count_data = pd.read_csv(count_file)
+            except pd.errors.EmptyDataError:
+                print("Count file is empty.")
+                existing_count_data = None
+    else:
+        print(f"No existing data found for {ticker_symbol}. Fetching full history from {start_date}.")
+
     end_date = datetime.now().strftime("%Y-%m-%d")
     
-    print(f"Processing stock: {ticker_symbol}")
+    if datetime.strptime(start_date, "%Y-%m-%d").date() >= datetime.now().date():
+        print(f"Data for {ticker_symbol} is already up to date.")
+        return
+
+    print(f"Processing stock: {ticker_symbol} from {start_date} to {end_date}")
 
     # -------------------- Historical Data --------------------
     ticker = yf.Ticker(ticker_symbol)
     historical_data = ticker.history(start=start_date, end=end_date)
+    if historical_data.empty:
+        print(f"No new historical data found for {ticker_symbol}.")
+        return
+
     closing_prices = historical_data[['Close']].reset_index()
     closing_prices.rename(columns={'Date': 'date', 'Close': 'snp'}, inplace=True)
     closing_prices['date'] = pd.to_datetime(closing_prices['date']).dt.tz_localize(None)
@@ -65,12 +108,12 @@ def process_stock(ticker_symbol, output_dir="data", fred_api_key=None):
             puts['cp_flag'] = 'P'
             
             all_options = pd.concat([all_options, calls, puts], ignore_index=True)
-            print(f"Fetched options data for expiration date: {expiration_date}")
+            # print(f"Fetched options data for expiration date: {expiration_date}")
         except Exception as e:
             print(f"Error fetching options data for {expiration_date}: {e}")
     
     if all_options.empty:
-        print(f"No options data found for {ticker_symbol}")
+        print(f"No new options data found for {ticker_symbol}")
         return
 
     all_options = all_options.rename(columns={'lastTradeDate': 'date'})
@@ -91,12 +134,9 @@ def process_stock(ticker_symbol, output_dir="data", fred_api_key=None):
     all_options['tau_years'] = all_options['tau'] / 365
     
     def classify_maturity_group(tau_years):
-        if tau_years <= 0.25:
-            return '0-3M'
-        elif tau_years <= 0.5:
-            return '3-6M'
-        else:
-            return '6-12M'
+        if tau_years <= 0.25: return '0-3M'
+        elif tau_years <= 0.5: return '3-6M'
+        else: return '6-12M'
     
     all_options['maturity_group'] = all_options['tau_years'].apply(classify_maturity_group)
     
@@ -136,16 +176,7 @@ def process_stock(ticker_symbol, output_dir="data", fred_api_key=None):
     indexopt = indexopt[indexopt['tau'].notna()]
     
     indexopt = indexopt[[
-        'date',
-        'price',
-        'tr',
-        'cp_flag',
-        'strike',
-        'callprice',
-        'exdate',
-        'tau',
-        'volume',
-        'impliedVolatility'
+        'date', 'price', 'tr', 'cp_flag', 'strike', 'callprice', 'exdate', 'tau', 'volume', 'impliedVolatility'
     ]].rename(columns={'impl_volatility': 'iv'})
     indexopt['date'] = pd.to_datetime(indexopt['date'])
     indexopt['tr'] = indexopt['tr'].ffill()
@@ -186,12 +217,8 @@ def process_stock(ticker_symbol, output_dir="data", fred_api_key=None):
     
     indexopt3['delta'] = indexopt3.apply(
         lambda row: calculate_delta(
-            S=row['price'],
-            K=row['strike'],
-            tau=row['tau_years'],
-            sigma=row['impliedVolatility'],
-            r=row['tr'],
-            option_type=row['cp_flag']
+            S=row['price'], K=row['strike'], tau=row['tau_years'],
+            sigma=row['impliedVolatility'], r=row['tr'], option_type=row['cp_flag']
         ),
         axis=1
     )
@@ -204,31 +231,40 @@ def process_stock(ticker_symbol, output_dir="data", fred_api_key=None):
         return True
 
     indexopt3 = indexopt3.groupby('date').filter(has_min_calls_and_puts)
+    if indexopt3.empty:
+        print(f"No new data for {ticker_symbol} after filtering for minimum calls and puts.")
+        return
+
     optcount = indexopt3.groupby('date').size().reset_index(name='count')
     optcount['date'] = pd.to_datetime(optcount['date']).dt.strftime('%d%b%Y')
     
     optcpstats = indexopt3.groupby(['date', 'cp_flag', 'tau']).agg(
-        n=('date', 'count'),
-        minm=('money', 'min'),
-        maxm=('money', 'max'),
-        minstk=('strike', 'min'),
-        maxstk=('strike', 'max')
+        n=('date', 'count'), minm=('money', 'min'), maxm=('money', 'max'),
+        minstk=('strike', 'min'), maxstk=('strike', 'max')
     ).reset_index()
     indexopt3.columns = ['dateraw','cp_flag','exdateraw','tauday','X','s','tr','money','oprice','volume','iv','deltachk']
     
-    yr1, yr2 = pd.to_datetime(start_date).year, pd.to_datetime(end_date).year
-    filesource = f"optout_{ticker_symbol}"
-    count_file = os.path.join(output_dir, f"{filesource}_{yr1}to{yr2}_count.csv")
-    data_file  = os.path.join(output_dir, f"{filesource}_{yr1}to{yr2}.csv")
+    # --- Append new data to existing files ---
+    if existing_data is not None:
+        final_data = pd.concat([existing_data, indexopt3], ignore_index=True)
+        final_data.drop_duplicates(subset=['dateraw', 'cp_flag', 'exdateraw', 'tauday', 'X'], keep='last', inplace=True)
+        final_data = final_data.sort_values(by=['dateraw', 'cp_flag', 'exdateraw', 'X']).reset_index(drop=True)
+    else:
+        final_data = indexopt3
+
+    if existing_count_data is not None:
+        final_count_data = pd.concat([existing_count_data, optcount], ignore_index=True)
+        final_count_data.drop_duplicates(subset=['date'], keep='last', inplace=True)
+        final_count_data = final_count_data.sort_values(by=['date']).reset_index(drop=True)
+    else:
+        final_count_data = optcount
+
+    final_count_data.to_csv(count_file, index=False)
+    final_data.to_csv(data_file, index=False)
     
-    optcount.to_csv(count_file, index=False)
-    indexopt3.to_csv(data_file, index=False)
-    
-    print(f"Saved data for {ticker_symbol} to {output_dir}")
+    print(f"Saved appended data for {ticker_symbol} to {output_dir}")
 
 if __name__ == '__main__':
-    # This part is for standalone execution and testing
-    # You would need to set the FRED_API_KEY environment variable
     fred_api_key = os.environ.get('FRED_API_KEY')
     if fred_api_key:
         process_stock('SPY', fred_api_key=fred_api_key)
