@@ -1,3 +1,7 @@
 {
-    "STOCK_LIST": ["AAPL", "GOOG", "MSFT"]
+    "STOCK_LIST": [ "^SPX", "AAPL", "BAC", "C", "MSFT", "META", "GE", "INTC", "CSCO", "BABA",
+    "WFC", "JPM", "AMD", "F", "TSLA", "GOOG", "T", "XOM", "AMZN",
+    "MS", "NVDA", "AIG", "GM", "DIS", "BA"],
+    "START_YEAR": "1996",
+    "END_YEAR": "2025"
 }
