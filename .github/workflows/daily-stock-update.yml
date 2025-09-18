@@ -24,4 +24,4 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-        run: python scripts-python/main.py
+        run: python -m scripts-python.main

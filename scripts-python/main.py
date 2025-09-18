@@ -1,9 +1,9 @@
 import os
 import json
-from process_stock import process_stock
-from mat_generator.sbub_run import run_mat_generator
-from mat_to_json import mat_to_json
-from utils.vercel_upload import upload_file
+from .process_stock import process_stock
+from .mat_generator.sbub_run import run_mat_generator
+from .mat_to_json import mat_to_json
+from .utils.vercel_upload import upload_file
 
 def main():
     """
