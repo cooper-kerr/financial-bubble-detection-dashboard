@@ -50,8 +50,6 @@ def main():
         mat_to_json(ticker, yr1, yr2, input_dir=mat_dir, output_dir=json_dir)
         
         # 4. Upload JSON to Vercel
-        # Note: This currently uses a placeholder function.
-        # The user needs to complete the implementation in vercel_upload.py
         upload_file(ticker, data_dir=json_dir)
         
         print(f"--- Finished Ticker: {ticker} ---")
