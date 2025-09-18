@@ -7,3 +7,13 @@ count.txt
 .env
 .nitro
 .tanstack
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Data files
+scripts-python/data/
+
+# Log files
+*.log

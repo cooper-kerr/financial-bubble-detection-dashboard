@@ -1,0 +1,6 @@
+pandas
+scipy
+requests
+yfinance
+fredapi
+matplotlib
