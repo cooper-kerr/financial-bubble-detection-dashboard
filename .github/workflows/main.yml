@@ -32,6 +32,8 @@ jobs:
       # Step 4: Run the scraper to update CSVs
       - name: Update CSV files
         run: python scripts/YF-Data-Scraper.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
       # Step 5: Commit and push updated CSVs
       - name: Commit and push changes
