@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas yfinance fredapi numpy
+          pip install pandas numpy yfinance scipy fredapi
 
       # Step 4: Run the scraper to update CSVs
       - name: Update CSV files
