@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from scipy.stats import norm
 
 # Directory where CSV files live
-csv_dir = "financial-bubble-detection-dashboard/data/csv"
+csv_dir = "data/csv"
 
 # Automatically detect all tickers based on CSV filenames
 tickers = [f.replace(".csv", "") for f in os.listdir(csv_dir) if f.endswith(".csv")]
