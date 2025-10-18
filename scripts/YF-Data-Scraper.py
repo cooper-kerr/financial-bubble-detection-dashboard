@@ -255,7 +255,7 @@ for ticker in tickers:
     indexopt3 = indexopt3[indexopt3['dateraw'] == yesterday]
 
     # Save folder inside the repo
-    filesource = ticker
+    filesource = f"optout_{ticker}"
     save_folder = "financial-bubble-detection-dashboard/data/csv"
     os.makedirs(save_folder, exist_ok=True)
 
@@ -276,10 +276,5 @@ for ticker in tickers:
         indexopt3.drop_duplicates(subset=["dateraw", "cp_flag", "tauday", "X"], keep="last", inplace=True)
     indexopt3.to_csv(data_file, index=False)
 
-
-
-    # data = your_existing_scraper_function(ticker)
-    # filtered = apply_your_filters(data)
-    # append_to_csv(csv_path, filtered)
 
     print(f"✅ Finished updating {ticker}.")
