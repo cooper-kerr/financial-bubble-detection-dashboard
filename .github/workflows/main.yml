@@ -31,7 +31,7 @@ jobs:
 
       # Step 4: Run the scraper to update CSVs
       - name: Update CSV files
-        run: python YF-Data-Scraper.py
+        run: python scripts/YF-Data-Scraper.py
 
       # Step 5: Commit and push updated CSVs
       - name: Commit and push changes
