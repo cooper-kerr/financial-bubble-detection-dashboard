@@ -2,62 +2,58 @@ name: Daily CSV Update
 
 on:
   schedule:
-    # Runs every day at 21:30 UTC = 4:30 PM EST
-    - cron: '30 21 * * *'
-  workflow_dispatch:  # allows manual triggering
+    - cron: '30 21 * * *'  # Runs every day at 21:30 UTC
+  workflow_dispatch:
 
 jobs:
   update-csv:
     runs-on: ubuntu-latest
-
     permissions:
-      contents: write  # allow git push
+      contents: write
 
     steps:
-      # Step 1: Checkout repository (with full history for safe commit)
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # Step 2: Set up Python
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # Step 3: Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pandas numpy yfinance scipy fredapi
 
-      # Step 4: Run the scraper
-      - name: Run YF Data Scraper
+      - name: Run scraper
         run: python scripts/YF-Data-Scraper.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
-      # Step 5: Verify output directory
-      - name: Verify CSV output
+      - name: Verify CSV changes
         run: |
-          echo "Checking data/csv directory..."
-          ls -l data/csv || echo "⚠️ No CSV directory found!"
+          echo "🔍 Checking CSV directory after script..."
+          ls -l data/csv | head -20
+          echo ""
+          echo "📄 Showing diff summary of recent CSV changes..."
+          git diff --stat data/csv || true
+          echo ""
+          echo "🧾 Showing sample of one CSV (first 10 lines):"
+          head -10 data/csv/optout_AAPL.csv || true
 
-      # Step 6: Commit and push updated CSVs
-      - name: Commit and push CSV updates
+      - name: Commit and push if changes exist
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/csv
-          
-          # Check if there are actual changes before committing
-          if git diff --cached --quiet; then
-            echo "✅ No changes detected — skipping commit."
-          else
+          echo "🧩 Checking for Git changes..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [[ -n "$(git status --porcelain data/csv)" ]]; then
+            git add data/csv
             git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push origin HEAD:${{ github.ref_name }}
-            echo "🚀 CSV updates committed and pushed."
+            git push
+            echo "✅ CSV updates committed and pushed."
+          else
+            echo "⚠️ No changes detected in CSV files — skipping commit."
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
