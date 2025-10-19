@@ -8,7 +8,7 @@ from nw_cov import nw_cov
 from datetime import datetime
 
 
-def sbub_lp_easy(filesource, yr1, yr2, pow, nstep, opth, hnumsd):
+def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
     # --- settings &  warnings off ---
     warnings.filterwarnings("ignore", message="Python:nearlySingularMatrix")
     warnings.filterwarnings("ignore", message="Python:SingularMatrix")
@@ -19,21 +19,22 @@ def sbub_lp_easy(filesource, yr1, yr2, pow, nstep, opth, hnumsd):
     modelname = 'cls6secp'
     np.random.seed(1234)
 
-# ========= Importing Count Data =========
-    count_file = '/Users/cooperkerr/Desktop/internship/Simulation/optout_^SPX_count.csv'
+    # ========= Importing Count Data =========
+    if not os.path.exists(count_file):
+        raise FileNotFoundError(f"Count file not found: {count_file}")
     df_count = pd.read_csv(count_file)
     nkcnt = df_count.iloc[:,1].astype(int).values
     nperiod = len(nkcnt)
-    print(f"Found {nperiod} dates from count file.")
+    print(f"Found {nperiod} dates from count file: {os.path.basename(count_file)}")
     
     # ------------- Read the main data file ------------
-
-    data_file = '/Users/cooperkerr/Desktop/internship/Simulation/optout_^SPX.csv'
+    if not os.path.exists(data_file):
+        raise FileNotFoundError(f"Data file not found: {data_file}")
     df = pd.read_csv(data_file)
     total = df.shape[0]
     if total != nkcnt.sum():
         raise ValueError(f"sum(nkcnt)={nkcnt.sum()} but found {total} rows in data file")
-
+    
     
     # Initialize dictionaries (equivalent to MATLAB cell arrays)
     dateraw = {}
@@ -551,6 +552,7 @@ def sbub_lp_easy(filesource, yr1, yr2, pow, nstep, opth, hnumsd):
 
     
     return bubout, dataout, setout
+
 
 
 
