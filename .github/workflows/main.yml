@@ -25,6 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy yfinance scipy fredapi
 
+      # ────────────── CSV SCRAPER ──────────────
       - name: Run CSV scraper
         run: python scripts/YF-Data-Scraper.py
         env:
@@ -35,10 +36,10 @@ jobs:
           echo "🔍 Checking CSV directory after scraper..."
           ls -l data/csv | head -20
           echo ""
-          echo "📄 Showing diff summary of recent CSV changes..."
+          echo "📄 Diff summary of recent CSV changes..."
           git diff --stat data/csv || true
           echo ""
-          echo "🧾 Showing sample of one CSV (first 10 lines):"
+          echo "🧾 Sample of one CSV:"
           head -10 data/csv/optout_AAPL.csv || true
 
       - name: Commit and push CSV updates
@@ -51,18 +52,48 @@ jobs:
             git push
             echo "✅ CSV updates committed and pushed."
           else
-            echo "⚠️ No changes detected in CSV files — skipping commit."
+            echo "⚠️ No CSV changes detected — skipping commit."
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # ────────────── MAT FILE CONVERSION ──────────────
+      - name: Clean old MAT files
+        run: |
+          echo "🧹 Removing old MAT files before new generation..."
+          rm -rf data/mat
+          mkdir -p data/mat
+
       - name: Process CSVs into MAT files
         run: |
           echo "⚡ Running MAT file conversion..."
-          mkdir -p data/mat
           python scripts/sbub_run.py
-          echo "✅ MAT files generated and stored in data/mat/"
+          echo "✅ MAT files successfully generated in data/mat/"
 
+      - name: Verify MAT files
+        run: |
+          echo "🔍 Checking MAT directory after conversion..."
+          ls -l data/mat | head -20
+          echo ""
+          echo "📄 Showing one MAT file name:"
+          ls data/mat | head -1 || echo "⚠️ No MAT files found!"
+
+      - name: Commit and push MAT updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n "$(git status --porcelain data/mat)" ]]; then
+            git add data/mat
+            git commit -m "Automated MAT update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push
+            echo "✅ MAT updates committed and pushed."
+          else
+            echo "⚠️ No MAT changes detected — skipping commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Optional — Upload MAT files as workflow artifacts for download
       - name: Upload processed MAT files as artifacts
         uses: actions/upload-artifact@v3
         with:
