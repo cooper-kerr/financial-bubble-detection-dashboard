@@ -254,9 +254,9 @@ for ticker_symbol in tickers:
     
     indexopt3 = indexopt3[indexopt3['dateraw'] == yesterday]
     optcount = optcount[optcount['date'] == yesterday]
-    
-    print(optcount)
-    print(indexopt3)
+
+
+
     
     count_file = os.path.join(save_folder, f"{filesource}_count.csv")
     data_file = os.path.join(save_folder, f"{filesource}.csv")
@@ -272,7 +272,6 @@ for ticker_symbol in tickers:
     if os.path.exists(data_file):
         existing_data = pd.read_csv(data_file)
         indexopt3 = pd.concat([existing_data, indexopt3], ignore_index=True)
-        indexopt3.drop_duplicates(subset=["date","cp_flag","tau","strike"], keep="last", inplace=True)
     indexopt3.to_csv(data_file, index=False)
 
     print(f"✅ Finished updating {ticker_symbol}.")
