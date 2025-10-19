@@ -9,13 +9,16 @@ on:
 jobs:
   update-csv:
     runs-on: ubuntu-latest
+
     permissions:
-      contents: write  # allows committing changes
+      contents: write  # allow git push
 
     steps:
-      # Step 1: Checkout repository
+      # Step 1: Checkout repository (with full history for safe commit)
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Step 2: Set up Python
       - name: Set up Python 3.11
@@ -29,20 +32,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy yfinance scipy fredapi
 
-      # Step 4: Run the scraper to update CSVs
-      - name: Update CSV files
+      # Step 4: Run the scraper
+      - name: Run YF Data Scraper
         run: python scripts/YF-Data-Scraper.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
-      # Step 5: Commit and push updated CSVs
-      - name: Commit and push changes
+      # Step 5: Verify output directory
+      - name: Verify CSV output
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "Checking data/csv directory..."
+          ls -l data/csv || echo "⚠️ No CSV directory found!"
+
+      # Step 6: Commit and push updated CSVs
+      - name: Commit and push CSV updates
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data/csv
-          git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" || echo "No changes to commit"
-          git push
+          
+          # Check if there are actual changes before committing
+          if git diff --cached --quiet; then
+            echo "✅ No changes detected — skipping commit."
+          else
+            git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "🚀 CSV updates committed and pushed."
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
