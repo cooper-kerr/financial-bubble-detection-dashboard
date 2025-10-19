@@ -237,10 +237,6 @@ for ticker_symbol in tickers:
     )
     indexopt3 = indexopt3.drop(columns=['tau_years'])
     
-    optcount = indexopt3.groupby('date').size().reset_index(name='count')
-    optcount['date'] = pd.to_datetime(optcount['date'], errors='coerce')
-    optcount['date'] = optcount['date'].dt.strftime('%d%b%Y')
-    
     optcpstats = indexopt3.groupby(['date', 'cp_flag', 'tau']).agg(
         n=('date', 'count'),
         minm=('money', 'min'),
@@ -255,8 +251,18 @@ for ticker_symbol in tickers:
     indexopt3 = indexopt3[indexopt3['dateraw'] == yesterday]
     optcount = optcount[optcount['date'] == yesterday]
 
+    optcount = indexopt3.groupby('date').size().reset_index(name='count')
+    optcount['date'] = pd.to_datetime(optcount['date'], errors='coerce')
+    optcount['date'] = optcount['date'].dt.strftime('%d%b%Y')
 
-
+    expected_count = optcount['count'].sum()  # total expected rows
+    actual_count = indexopt3.shape[0]         # actual rows in indexopt3
+    
+    if expected_count != actual_count:
+        raise ValueError(f"Mismatch: optcount={expected_count} rows, "
+                         f"but indexopt3 has {actual_count} rows for {yesterday}")
+    else:
+        print(f"✅ Row count check passed: {actual_count} rows match optcount for {yesterday}")
     
     count_file = os.path.join(save_folder, f"{filesource}_count.csv")
     data_file = os.path.join(save_folder, f"{filesource}.csv")
