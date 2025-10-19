@@ -248,12 +248,14 @@ for ticker_symbol in tickers:
     
     yesterday = (datetime.now() - timedelta(days=2)).strftime('%d%b%Y')
     
-    indexopt3 = indexopt3[indexopt3['dateraw'] == yesterday]
-    optcount = optcount[optcount['date'] == yesterday]
+    
 
     optcount = indexopt3.groupby('date').size().reset_index(name='count')
     optcount['date'] = pd.to_datetime(optcount['date'], errors='coerce')
     optcount['date'] = optcount['date'].dt.strftime('%d%b%Y')
+
+    indexopt3 = indexopt3[indexopt3['dateraw'] == yesterday]
+    optcount = optcount[optcount['date'] == yesterday]
 
     expected_count = optcount['count'].sum()  # total expected rows
     actual_count = indexopt3.shape[0]         # actual rows in indexopt3
