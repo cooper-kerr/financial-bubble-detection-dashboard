@@ -256,6 +256,7 @@ for ticker_symbol in tickers:
     optcount = optcount[optcount['date'] == yesterday]
     
     print(optcount)
+    print(indexopt3)
     
     count_file = os.path.join(save_folder, f"{filesource}_count.csv")
     data_file = os.path.join(save_folder, f"{filesource}.csv")
