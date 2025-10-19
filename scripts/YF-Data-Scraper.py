@@ -250,7 +250,7 @@ for ticker_symbol in tickers:
     
     
 
-    optcount = indexopt3.groupby('date').size().reset_index(name='count')
+    optcount = indexopt3.groupby('dateraw').size().reset_index(name='count')
     optcount['date'] = pd.to_datetime(optcount['date'], errors='coerce')
     optcount['date'] = optcount['date'].dt.strftime('%d%b%Y')
 
