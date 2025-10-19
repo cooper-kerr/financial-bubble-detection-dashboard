@@ -7,8 +7,6 @@ from lpoly2 import lpoly2
 from nw_cov import nw_cov
 from datetime import datetime
 
-
-def sbub_lp_easy(filesource, yr1, yr2, pow, nstep, opth, hnumsd):
 def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
     # --- settings &  warnings off ---
     warnings.filterwarnings("ignore", message="Python:nearlySingularMatrix")
@@ -559,3 +557,4 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
 
 
     return bubout, dataout, setout
+
