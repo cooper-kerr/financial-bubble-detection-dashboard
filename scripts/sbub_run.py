@@ -3,8 +3,6 @@ import numpy as np
 from scipy.io import savemat
 from sbub_lp_easy import sbub_lp_easy
 from sbub_split import sbub_split
-import orginal_plot as sbub_plot  # keep this if needed later
-
 
 def main():
     # ──────────────── 1) Setup ────────────────
@@ -107,3 +105,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
