@@ -272,6 +272,7 @@ for ticker_symbol in tickers:
     if os.path.exists(data_file):
         existing_data = pd.read_csv(data_file)
         indexopt3 = pd.concat([existing_data, indexopt3], ignore_index=True)
+        indexopt3.drop_duplicates(subset=["dateraw", "cp_flag", "tauday", "X"], keep="last", inplace=True)
     indexopt3.to_csv(data_file, index=False)
 
     print(f"✅ Finished updating {ticker_symbol}.")
