@@ -1,4 +1,4 @@
-name: Daily CSV Update
+name: Daily Yahoo Finance Bubble Update
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  update-csv:
+  update-csv-and-process:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,14 +25,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy yfinance scipy fredapi
 
-      - name: Run scraper
+      - name: Run CSV scraper
         run: python scripts/YF-Data-Scraper.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
       - name: Verify CSV changes
         run: |
-          echo "🔍 Checking CSV directory after script..."
+          echo "🔍 Checking CSV directory after scraper..."
           ls -l data/csv | head -20
           echo ""
           echo "📄 Showing diff summary of recent CSV changes..."
@@ -41,12 +41,10 @@ jobs:
           echo "🧾 Showing sample of one CSV (first 10 lines):"
           head -10 data/csv/optout_AAPL.csv || true
 
-      - name: Commit and push if changes exist
+      - name: Commit and push CSV updates
         run: |
-          echo "🧩 Checking for Git changes..."
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           if [[ -n "$(git status --porcelain data/csv)" ]]; then
             git add data/csv
             git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -57,3 +55,16 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Process CSVs into MAT files
+        run: |
+          echo "⚡ Running MAT file conversion..."
+          mkdir -p data/processed
+          python src/main.py
+          echo "✅ MAT files generated and stored in data/processed/"
+
+      - name: Upload processed MAT files as artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: processed-mat-files
+          path: data/processed/
