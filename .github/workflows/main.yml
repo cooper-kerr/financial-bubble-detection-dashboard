@@ -59,12 +59,12 @@ jobs:
       - name: Process CSVs into MAT files
         run: |
           echo "⚡ Running MAT file conversion..."
-          mkdir -p data/processed
-          python src/main.py
-          echo "✅ MAT files generated and stored in data/processed/"
+          mkdir -p data/mat
+          python scripts/sbub_run.py
+          echo "✅ MAT files generated and stored in data/mat/"
 
       - name: Upload processed MAT files as artifacts
         uses: actions/upload-artifact@v3
         with:
           name: processed-mat-files
-          path: data/processed/
+          path: data/mat/
