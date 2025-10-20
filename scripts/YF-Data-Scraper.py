@@ -246,7 +246,7 @@ for ticker_symbol in tickers:
     ).reset_index()
     indexopt3.columns = ['dateraw','cp_flag','exdateraw','tauday','X','s','tr','money','oprice','volume','iv','deltachk']
     
-    yesterday = (datetime.now() - timedelta(days=2)).strftime('%d%b%Y')
+    yesterday = (datetime.now() - timedelta(days=1)).strftime('%d%b%Y')
     
     
 
