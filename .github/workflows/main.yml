@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  update-csv-and-process:
+  process-data:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -30,50 +30,20 @@ jobs:
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
-      - name: Verify CSV changes
+      - name: Process CSVs into MAT and JSON files
         run: |
-          echo "🔍 Checking CSV directory after scraper..."
-          ls -l data/csv | head -20
-          echo ""
-          echo "📄 Showing diff summary of recent CSV changes..."
-          git diff --stat data/csv || true
-          echo ""
-          echo "🧾 Showing sample of one CSV (first 10 lines):"
-          head -10 data/csv/optout_AAPL.csv || true
-
-      - name: Commit and push CSV updates
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain data/csv)" ]]; then
-            git add data/csv
-            git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push
-            echo "✅ CSV updates committed and pushed."
-          else
-            echo "⚠️ No changes detected in CSV files — skipping commit."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Process CSVs into MAT files
-        run: |
-          echo "⚡ Running MAT file conversion..."
+          echo "⚡ Generating MAT and JSON files..."
           mkdir -p data/mat
+          mkdir -p data/json
           python scripts/sbub_run.py
-          echo "✅ MAT files generated and stored in data/mat/"
+          python scripts/bubble_estimator.py
+          echo "✅ MAT and JSON files generated."
 
-      - name: Commit and push MAT files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain data/mat)" ]]; then
-            git add data/mat
-            git commit -m "Automated MAT update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push
-            echo "✅ MAT files committed and pushed."
-          else
-            echo "⚠️ No changes detected in MAT files — skipping commit."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload generated artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: financial-data
+          path: |
+            data/mat/
+            data/json/
+          overwrite: true
