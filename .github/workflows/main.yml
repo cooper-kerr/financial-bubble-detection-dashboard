@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy yfinance scipy fredapi
+          pip install pandas numpy yfinance scipy fredapi matplotlib
 
       - name: Run CSV scraper
         run: python scripts/YF-Data-Scraper.py
