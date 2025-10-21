@@ -52,7 +52,6 @@ jobs:
             echo "✅ CSV updates committed and pushed."
           else
             echo "⚠️ No changes detected in CSV files — skipping commit."
-          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -63,9 +62,16 @@ jobs:
           python scripts/sbub_run.py
           echo "✅ MAT files generated and stored in data/mat/"
 
-      - name: Upload processed MAT files as artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: processed-mat-files
-          path: data/mat/
-          overwrite: true
+      - name: Commit and push MAT files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n "$(git status --porcelain data/mat)" ]]; then
+            git add data/mat
+            git commit -m "Automated MAT update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push
+            echo "✅ MAT files committed and pushed."
+          else
+            echo "⚠️ No changes detected in MAT files — skipping commit."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
