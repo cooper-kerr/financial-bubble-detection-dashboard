@@ -2,11 +2,11 @@ name: Daily Yahoo Finance Bubble Update
 
 on:
   schedule:
-    - cron: '30 21 * * *'  # Runs every day at 21:30 UTC
+    - cron: '30 21 * * *'  # 21:30 UTC daily
   workflow_dispatch:
 
 jobs:
-  process-data:
+  scrape-and-process:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,25 +25,49 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy yfinance scipy fredapi matplotlib
 
-      - name: Run CSV scraper
-        run: python scripts/YF-Data-Scraper.py
+      - name: Run CSV scraper & generate MAT files
+        run: |
+          python scripts/YF-Data-Scraper.py
+          python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
-      - name: Process CSVs into MAT and JSON files
-        run: |
-          echo "⚡ Generating MAT and JSON files..."
-          mkdir -p data/mat
-          mkdir -p data/json
-          python scripts/sbub_run.py
-          python scripts/bubble_estimator.py
-          echo "✅ MAT and JSON files generated."
-
-      - name: Upload generated artifacts
+      - name: Upload MAT files as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: financial-data
-          path: |
-            data/mat/
-            data/json/
-          overwrite: true
+          name: mat-files
+          path: data/mat/*.mat
+
+      - name: Download MAT files for JSON conversion
+        uses: actions/download-artifact@v4
+        with:
+          name: mat-files
+          path: data/mat  # download back to this folder
+
+      - name: Convert MAT to JSON
+        run: |
+          mkdir -p data/json
+          python scripts/mat_to_json.py  # your converter script
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+      - name: Upload JSON files as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: json-files
+          path: data/json/*.json
+
+      - name: Commit small CSV/JSON updates (optional)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n "$(git status --porcelain data/csv data/json)" ]]; then
+            git add data/csv data/json
+            git commit -m "Automated CSV/JSON update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push
+            echo "✅ CSV/JSON updates committed and pushed."
+          else
+            echo "⚠️ No changes detected in CSV/JSON — skipping commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
