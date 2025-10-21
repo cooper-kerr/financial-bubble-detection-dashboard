@@ -529,6 +529,7 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
     bubout['sumvolc'] = sumvolc
     bubout['sumvolp'] = sumvolp
 
+    filesource = os.path.basename(data_file).replace(".csv", "")
     setout = {}
     setout['filesource'] = filesource
     setout['modelname'] = modelname
@@ -552,6 +553,7 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
 
 
     return bubout, dataout, setout
+
 
 
 
