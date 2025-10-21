@@ -77,20 +77,20 @@ def process_stock(stockcode):
     # Construct full paths for loading .mat files
     # The files are now expected to be in the same directory as the script
     splitadj_files = list(SCRIPT_DIR.glob(f"optout_{stockcode}_*_splitadj_h0_hsd5_nstep200.mat"))
-  if splitadj_files:
-      dataname2_path = splitadj_files[0]
-  else:
-      print(f"No split-adjusted .mat file found for {stockcode}")
-      return False
-  
-  ref_files = list(SCRIPT_DIR.glob(f"optout_{stockcode}_*_h0_hsd5_nstep200.mat"))
-  # exclude the split-adjusted file
-  ref_files = [f for f in ref_files if "_splitadj_" not in f.name]
-  if ref_files:
-      reference_file_path = ref_files[0]
-  else:
-      print(f"No reference .mat file found for {stockcode}")
-      return False
+    if splitadj_files:
+        dataname2_path = splitadj_files[0]
+    else:
+        print(f"No split-adjusted .mat file found for {stockcode}")
+        return False
+    
+    ref_files = list(SCRIPT_DIR.glob(f"optout_{stockcode}_*_h0_hsd5_nstep200.mat"))
+    # exclude the split-adjusted file
+    ref_files = [f for f in ref_files if "_splitadj_" not in f.name]
+    if ref_files:
+        reference_file_path = ref_files[0]
+    else:
+        print(f"No reference .mat file found for {stockcode}")
+        return False
 
     try:
         # Load the split-adjusted file for adjout
