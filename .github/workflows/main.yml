@@ -46,7 +46,7 @@ jobs:
 
       - name: Convert MAT to JSON
         run: |
-          mkdir -p data/json
+          mkdir -public/data
           python scripts/bubble_estimator.py  # your converter script
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -55,14 +55,22 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: json-files
-          path: data/json/*.json
+          path: public/data/*.json
 
-      - name: Commit small CSV/JSON updates (optional)
+      - name: Upload JSON to Vercel Blob
+        run: |
+          export BLOB_READ_WRITE_TOKEN=${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          bun run scripts/upload-data.js
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+
+      # 7️⃣ Commit CSV/JSON updates back to repo (optional)
+      - name: Commit small CSV/JSON updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if [[ -n "$(git status --porcelain data/csv data/json)" ]]; then
-            git add data/csv data/json
+            git add data/csv public/data
             git commit -m "Automated CSV/JSON update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push
             echo "✅ CSV/JSON updates committed and pushed."
