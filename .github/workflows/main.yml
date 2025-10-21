@@ -52,6 +52,7 @@ jobs:
             echo "✅ CSV updates committed and pushed."
           else
             echo "⚠️ No changes detected in CSV files — skipping commit."
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -73,5 +74,6 @@ jobs:
             echo "✅ MAT files committed and pushed."
           else
             echo "⚠️ No changes detected in MAT files — skipping commit."
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
