@@ -15,7 +15,7 @@ SCRIPT_DIR = Path(os.environ.get("MAT_ARTIFACT_DIR", "./data/mat")).resolve()
 
 # Output folders
 IMG_DIR = Path("./data/img")
-DATA_DIR = Path("./data/json")
+DATA_DIR = Path(".public/data")
 
 IMG_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
