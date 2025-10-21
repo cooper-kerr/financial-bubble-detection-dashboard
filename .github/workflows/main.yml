@@ -47,7 +47,7 @@ jobs:
       - name: Convert MAT to JSON
         run: |
           mkdir -p data/json
-          python scripts/mat_to_json.py  # your converter script
+          python scripts/bubble_estimator.py  # your converter script
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
