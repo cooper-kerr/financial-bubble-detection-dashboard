@@ -67,6 +67,13 @@ export function useDashboardData() {
 
 				const dateRange = getDateRange(data.value);
 
+				// For Yahoo Finance, default start date to Oct 17 of the year
+				let newStartDate = dateRange.min;
+				if (state.dataSource === "Yahoo Finance") {
+					const year = dateRange.min.getFullYear();
+					newStartDate = new Date(year, 9, 17); // Month is 0-indexed (9 = October)
+				}
+
 				// Handle regular price data result (optional, don't fail if not available)
 				const regularPriceData =
 					regularData.status === "fulfilled" ? regularData.value : null;
@@ -90,9 +97,9 @@ export function useDashboardData() {
 					bubbleData: data.value,
 					regularPriceData,
 					loading: false,
-					// Set initial date range to full range if not already set
-					startDate: prev.startDate || dateRange.min,
-					endDate: prev.endDate || dateRange.max,
+					// Set initial date range based on the new data
+					startDate: newStartDate,
+					endDate: dateRange.max,
 				}));
 			} catch (error) {
 				if (isCancelled) return;
@@ -127,7 +134,12 @@ export function useDashboardData() {
 	}, []);
 
 	const setDataSource = useCallback((dataSource: DataSource) => {
-		setState((prev) => ({ ...prev, dataSource }));
+		setState((prev) => ({
+			...prev,
+			dataSource,
+			startDate: null,
+			endDate: null,
+		}));
 	}, []);
 
 	const setDateRange = useCallback(
