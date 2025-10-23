@@ -67,7 +67,7 @@ def process_stock(stockcode):
     print(f"{'='*50}")
 
     # Set up the parameters
-    yr1, yr2 = '1996', '2030'
+    yr1, yr2 = '2025', '2030'
     startday = f'01JAN{yr1}'
     endday   = f'31DEC{yr2}'
     nplots = 3
