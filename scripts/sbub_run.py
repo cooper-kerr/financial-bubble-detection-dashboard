@@ -12,7 +12,7 @@ def main():
                      'MSFT', 'NVDA', 'T', 'TSLA', 'WFC', 'XOM', '^SPX']
     
     # ──────────────── Parameters ────────────────
-    
+    yr1, yr2 = '2025', '2025'
     pow, nstep, opth, hnumsd = 2, 200, 0, 5
 
     output_dir = "data/mat"
@@ -41,6 +41,8 @@ def main():
             bubout, dataout, setout = sbub_lp_easy(
                 data_file,
                 count_file,
+                yr1,
+                yr2,
                 pow,
                 nstep,
                 opth,
@@ -90,3 +92,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
