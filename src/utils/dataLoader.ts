@@ -1,6 +1,7 @@
 import type {
 	BubbleData,
 	ChartDataPoint,
+	DataSource,
 	OptionType,
 	PriceDifferenceDataPoint,
 	RegularPriceData,
@@ -69,24 +70,29 @@ const REGULAR_PRICE_URLS: Record<StockCode, string> = {
 
 export async function loadBubbleData(
 	stockCode: StockCode,
+	dataSource: DataSource,
 ): Promise<BubbleData> {
 	try {
-		// Try Blob Storage first, fallback to local files
-		const blobUrl = BLOB_URLS[stockCode];
-		const url =
-			blobUrl || `/data/bubble_data_${stockCode}_splitadj_1996to2023.json`;
+		let url: string;
+		if (dataSource === "WRDS") {
+			url =
+				BLOB_URLS[stockCode] ||
+				`/data/bubble_data_${stockCode}_splitadj_1996to2023.json`;
+		} else {
+			url = `/data/bubble_data_${stockCode}_splitadj_1996to2030.json`;
+		}
 
 		const response = await fetch(url);
 		if (!response.ok) {
 			throw new Error(
-				`Failed to load data for ${stockCode}: ${response.statusText}`,
+				`Failed to load data for ${stockCode} from ${dataSource}: ${response.statusText}`,
 			);
 		}
 
 		const data: BubbleData = await response.json();
 		return data;
 	} catch (error) {
-		console.error(`Error loading data for ${stockCode}:`, error);
+		console.error(`Error loading data for ${stockCode} from ${dataSource}:`, error);
 		throw error;
 	}
 }

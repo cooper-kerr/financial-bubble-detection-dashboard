@@ -11,13 +11,19 @@ import {
 } from "@/components/ui/select";
 import { RotateCcw } from "lucide-react";
 import React from "react";
-import { STOCK_LIST, type StockCode } from "../types/bubbleData";
+import {
+	STOCK_LIST,
+	type DataSource,
+	type StockCode,
+} from "../types/bubbleData";
 
 interface DashboardControlsProps {
 	selectedStock: StockCode;
+	dataSource: DataSource;
 	startDate: Date | null;
 	endDate: Date | null;
 	onStockChange: (stock: StockCode) => void;
+	onDataSourceChange: (dataSource: DataSource) => void;
 	onDateRangeChange: (startDate: Date | null, endDate: Date | null) => void;
 	onResetDateRange: () => void;
 	availableDateRange: { min: Date; max: Date } | null;
@@ -26,9 +32,11 @@ interface DashboardControlsProps {
 
 export const DashboardControls = React.memo(function DashboardControls({
 	selectedStock,
+	dataSource,
 	startDate,
 	endDate,
 	onStockChange,
+	onDataSourceChange,
 	onDateRangeChange,
 	onResetDateRange,
 	availableDateRange,
@@ -63,6 +71,26 @@ export const DashboardControls = React.memo(function DashboardControls({
 										{stock}
 									</SelectItem>
 								))}
+							</SelectContent>
+						</Select>
+					</div>
+
+					{/* Data Source Selector */}
+					<div className="flex flex-col space-y-2">
+						<label htmlFor="data-source-select" className="text-sm font-medium">
+							Data Source
+						</label>
+						<Select
+							value={dataSource}
+							onValueChange={onDataSourceChange}
+							disabled={loading}
+						>
+							<SelectTrigger id="data-source-select" className="w-[180px]">
+								<SelectValue placeholder="Select data source" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="WRDS">WRDS</SelectItem>
+								<SelectItem value="Yahoo Finance">Yahoo Finance</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
