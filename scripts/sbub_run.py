@@ -32,10 +32,10 @@ def main():
             count_file = f"data/csv/optout_{stockcode}_count.csv"
 
             # Build MAT filenames
-            dataname  = f"optout_{stockcode}_h{opth}_hsd{hnumsd}_nstep{nstep}"
+            dataname  = f"optout_{stockcode}_{yr1}to{yr2}_h{opth}_hsd{hnumsd}_nstep{nstep}"
             dataname  = f"optout_{stockcode}_to_h{opth}_hsd{hnumsd}_nstep{nstep}"
             matfile   = os.path.join(output_dir, dataname + ".mat")
-            dataname2 = f"optout_{stockcode}_splitadj_h{opth}_hsd{hnumsd}_nstep{nstep}"
+            dataname2 = f"optout_{stockcode}_{yr1}to{yr2}_splitadj_h{opth}_hsd{hnumsd}_nstep{nstep}"
             dataname2 = f"optout_{stockcode}_to_splitadj_h{opth}_hsd{hnumsd}_nstep{nstep}"
             splitfile = os.path.join(output_dir, dataname2 + ".mat")
 
