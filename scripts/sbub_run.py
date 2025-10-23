@@ -7,27 +7,58 @@ from sbub_lp_easy import sbub_lp_easy
 from sbub_split import sbub_split
 
 def main():
+    # --- Paths ---
+    csv_dir = "data/csv"
+    mat_dir = "data/mat"
+    os.makedirs(mat_dir, exist_ok=True)
+
+    # --- Fixed parameters ---
+    yr1, yr2 = "2025", "2025"
     # ──────────────── Ticker list ────────────────
     stockcodelist = ['AAPL', 'AIG', 'AMD', 'AMZN', 'BA', 'BABA', 'BAC', 'C', 'CSCO',
                      'DIS', 'F', 'GE', 'GM', 'GOOG', 'INTC', 'JPM', 'META', 'MS', 
                      'MSFT', 'NVDA', 'T', 'TSLA', 'WFC', 'XOM', '^SPX']
-
-    # ──────────────── Parameters ────────────────
-    current_year = datetime.now().year
-    yr1, yr2 = '2025', str(current_year)
     
+    # ──────────────── Parameters ────────────────
+    current_year = datetime.now.year()
+    yr1, yr2 = '2025', str(current_year)
     pow, nstep, opth, hnumsd = 2, 200, 0, 5
 
+    # --- Identify tickers automatically from CSV folder ---
+    tickers = sorted(
+        list({f.split("_")[1].replace(".csv", "") for f in os.listdir(csv_dir) if f.startswith("optout_")})
+    )
+    print(f"Found {len(tickers)} tickers to process: {', '.join(tickers)}")
+
+    for i, stockcode in enumerate(tickers, start=1):
+        print("\n" + "=" * 50)
+        print(f"[{i}/{len(tickers)}] Processing {stockcode}...")
+        print("=" * 50)
+
+        # --- Expected input CSV paths ---
+        filesource_main = os.path.join(csv_dir, f"optout_{stockcode}.csv")
+        filesource_count = os.path.join(csv_dir, f"optout_{stockcode}_count.csv")
+
+        if not (os.path.exists(filesource_main) and os.path.exists(filesource_count)):
+            print(f"⚠️ Skipping {stockcode} — missing one or both required CSVs.")
+            continue
     output_dir = "data/mat"
     os.makedirs(output_dir, exist_ok=True)
 
+        # --- Build .mat output names ---
+        dataname = f"optout_{stockcode}_{yr1}to{yr2}_h{opth}_hsd{hnumsd}_nstep{nstep}"
+        dataname2 = f"optout_{stockcode}_{yr1}to{yr2}_splitadj_h{opth}_hsd{hnumsd}_nstep{nstep}"
     print(f"Found {len(stockcodelist)} tickers to process: {', '.join(stockcodelist)}\n")
 
+        matfile = os.path.join(mat_dir, dataname + ".mat")
+        splitfile = os.path.join(mat_dir, dataname2 + ".mat")
     for idx, stockcode in enumerate(stockcodelist, 1):
         print("="*50)
         print(f"[{idx}/{len(stockcodelist)}] Processing {stockcode}...")
         print("="*50)
 
+        # --- Run bubble estimation ---
+        print(f"Running bubble estimation for {stockcode}...")
         try:
             # Build CSV paths for this ticker
             data_file  = f"data/csv/optout_{stockcode}.csv"
@@ -42,6 +73,7 @@ def main():
             # ──────────────── Bubble estimation ────────────────
             print(f"Running bubble estimation for {stockcode}...")
             bubout, dataout, setout = sbub_lp_easy(
+                f"optout_{stockcode}", yr1, yr2, pow, nstep, opth, hnumsd
                 data_file,
                 count_file,
                 yr1,
@@ -52,9 +84,18 @@ def main():
                 hnumsd
             )
 
+            # Build data structures for MATLAB
+            nperiod = int(setout["nperiod"])
             # Build dataout_struct
             nperiod = int(setout['nperiod'])
             dataout_struct = {
+                "sout": np.array([dataout["sout"][t] for t in range(nperiod)], dtype=float)[None, :],
+                "da": np.array([dataout["da"][t] for t in range(nperiod)], dtype=float)[None, :],
+                "tr": np.array([np.array(dataout["tr"][t], float) for t in range(nperiod)], dtype=object)[None, :],
+                "oprice": np.array([np.array(dataout["oprice"][t], float) for t in range(nperiod)], dtype=object)[None, :],
+                "cp": np.array([np.array(dataout["cp"][t], float) for t in range(nperiod)], dtype=object)[None, :],
+                "X": np.array([np.array(dataout["X"][t], float) for t in range(nperiod)], dtype=object)[None, :],
+                "tau": np.array([np.array(dataout["tau"][t], float) for t in range(nperiod)], dtype=object)[None, :],
                 'sout'   : np.array([dataout['sout'][t] for t in range(nperiod)], dtype=float)[None,:],
                 'da'     : np.array([dataout['da'][t]   for t in range(nperiod)], dtype=float)[None,:],
                 'tr'     : np.array([np.array(dataout['tr'][t], float)    for t in range(nperiod)], dtype=object)[None,:],
@@ -64,11 +105,26 @@ def main():
                 'tau'    : np.array([np.array(dataout['tau'][t], float)   for t in range(nperiod)], dtype=object)[None,:],
             }
 
+            setout_struct = {
+                k: np.array(v, dtype=float) if isinstance(v, (int, float)) else v
+                for k, v in setout.items()
+            }
             setout_struct = {k: np.array(v, dtype=float) if isinstance(v, (int,float)) else v
                              for k,v in setout.items()}
 
             # Save MAT file
             mat_dict = {
+                "bubout": bubout,
+                "dataout": dataout_struct,
+                "setout": setout_struct,
+                "stockcode": stockcode,
+                "filesource": f"optout_{stockcode}",
+                "yr1": yr1,
+                "yr2": yr2,
+                "pow": float(pow),
+                "nstep": float(nstep),
+                "opth": float(opth),
+                "hnumsd": float(hnumsd),
                 'bubout'    : bubout,
                 'dataout'   : dataout_struct,
                 'setout'    : setout_struct,
@@ -81,21 +137,41 @@ def main():
                 'opth'      : float(opth),
                 'hnumsd'    : float(hnumsd),
             }
+
+            # Always overwrite old MAT files
             savemat(matfile, mat_dict)
+            print(f"✅ Saved bubble estimation to {matfile}")
+
+        except Exception as e:
+            print(f"❌ Error processing {stockcode} during bubble estimation: {e}")
+            continue
+
+        # --- Split adjustment ---
+        try:
+            adjout, dataout_split, bubout_split = sbub_split(
+                stockcode, matfile, yr1, yr2
+            )
+
+            adjout_clean = {
+                key: (value if value is not None else np.array([]))
+                for key, value in adjout.items()
+            }
             print(f"✅ Saved bubble results to {matfile}")
 
+            savemat(splitfile, {"adjout": adjout_clean})
+            print(f"✅ Saved split‐adjusted results to {splitfile}")
             # ──────────────── Split adjustment ────────────────
             print(f"Running split adjustment for {stockcode}...")
             adjout, dataout_split, bubout_split = sbub_split(stockcode, matfile, yr1, yr2)
-            adjout, dataout_split, bubout_split = sbub_split(stockcode, matfile)
             adjout_clean = {k: (v if v is not None else np.array([])) for k,v in adjout.items()}
             savemat(splitfile, {'adjout': adjout_clean})
             print(f"✅ Saved split-adjusted results to {splitfile}\n")
 
         except Exception as e:
+            print(f"❌ Error processing {stockcode} during split adjustment: {e}")
             print(f"❌ Error processing {stockcode} during bubble estimation: {e}\n")
             continue
 
+
 if __name__ == "__main__":
     main()
-
