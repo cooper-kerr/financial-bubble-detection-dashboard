@@ -42,12 +42,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mat-files
-          path: data/mat  # download back to this folder
+          path: data/mat
 
       - name: Convert MAT to JSON
         run: |
           mkdir -p public/data
-          python scripts/bubble_estimator.py  # your converter script
+          python scripts/bubble_estimator.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
@@ -57,25 +57,30 @@ jobs:
           name: json-files
           path: public/data/*.json
 
+      - name: Install Bun
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
+
       - name: Upload JSON to Vercel Blob
         run: |
+          export PATH="$HOME/.bun/bin:$PATH"
           export BLOB_READ_WRITE_TOKEN=${{ secrets.BLOB_READ_WRITE_TOKEN }}
           bun run scripts/upload-data.js
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
 
-      # 7️⃣ Commit CSV/JSON updates back to repo (optional)
       - name: Commit small CSV/JSON updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain data/csv data/json)" ]]; then
+          if [[ -n "$(git status --porcelain data/csv public/data)" ]]; then
             git add data/csv public/data
             git commit -m "Automated CSV/JSON update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push
             echo "✅ CSV/JSON updates committed and pushed."
           else
-            echo "⚠️ No changes detected in CSV/JSON — skipping commit."
+            echo "⚠️ No changes detected — skipping commit."
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
