@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
 	BubbleData,
 	ChartDataPoint,
+	DataSource,
 	OptionType,
 	PriceDifferenceDataPoint,
 	RegularPriceData,
@@ -17,6 +18,7 @@ import {
 
 interface DashboardState {
 	selectedStock: StockCode;
+	dataSource: DataSource;
 	startDate: Date | null;
 	endDate: Date | null;
 	bubbleData: BubbleData | null;
@@ -28,6 +30,7 @@ interface DashboardState {
 export function useDashboardData() {
 	const [state, setState] = useState<DashboardState>({
 		selectedStock: "SPX",
+		dataSource: "WRDS",
 		startDate: null,
 		endDate: null,
 		bubbleData: null,
@@ -50,7 +53,7 @@ export function useDashboardData() {
 			try {
 				// Load both bubble data and regular price data in parallel
 				const [data, regularData] = await Promise.allSettled([
-					loadBubbleData(state.selectedStock),
+					loadBubbleData(state.selectedStock, state.dataSource),
 					loadRegularPriceData(state.selectedStock),
 				]);
 
@@ -108,7 +111,7 @@ export function useDashboardData() {
 		return () => {
 			isCancelled = true;
 		};
-	}, [state.selectedStock]);
+	}, [state.selectedStock, state.dataSource]);
 
 	// Cleanup timeout on unmount
 	useEffect(() => {
@@ -121,6 +124,10 @@ export function useDashboardData() {
 
 	const setSelectedStock = useCallback((stock: StockCode) => {
 		setState((prev) => ({ ...prev, selectedStock: stock }));
+	}, []);
+
+	const setDataSource = useCallback((dataSource: DataSource) => {
+		setState((prev) => ({ ...prev, dataSource }));
 	}, []);
 
 	const setDateRange = useCallback(
@@ -212,6 +219,7 @@ export function useDashboardData() {
 
 	return {
 		selectedStock: state.selectedStock,
+		dataSource: state.dataSource,
 		startDate: state.startDate,
 		endDate: state.endDate,
 		bubbleData: state.bubbleData,
@@ -219,6 +227,7 @@ export function useDashboardData() {
 		loading: state.loading,
 		error: state.error,
 		setSelectedStock,
+		setDataSource,
 		setDateRange,
 		resetDateRange,
 		getChartData,
