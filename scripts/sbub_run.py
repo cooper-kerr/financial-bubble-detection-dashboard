@@ -10,8 +10,9 @@ def main():
     stockcodelist = ['AAPL', 'AIG', 'AMD', 'AMZN', 'BA', 'BABA', 'BAC', 'C', 'CSCO',
                      'DIS', 'F', 'GE', 'GM', 'GOOG', 'INTC', 'JPM', 'META', 'MS', 
                      'MSFT', 'NVDA', 'T', 'TSLA', 'WFC', 'XOM', '^SPX']
-    
+
     # ──────────────── Parameters ────────────────
+    yr1, yr2 = '2025', '2025'
     
     pow, nstep, opth, hnumsd = 2, 200, 0, 5
 
@@ -31,8 +32,10 @@ def main():
             count_file = f"data/csv/optout_{stockcode}_count.csv"
 
             # Build MAT filenames
+            dataname  = f"optout_{stockcode}_h{opth}_hsd{hnumsd}_nstep{nstep}"
             dataname  = f"optout_{stockcode}_to_h{opth}_hsd{hnumsd}_nstep{nstep}"
             matfile   = os.path.join(output_dir, dataname + ".mat")
+            dataname2 = f"optout_{stockcode}_splitadj_h{opth}_hsd{hnumsd}_nstep{nstep}"
             dataname2 = f"optout_{stockcode}_to_splitadj_h{opth}_hsd{hnumsd}_nstep{nstep}"
             splitfile = os.path.join(output_dir, dataname2 + ".mat")
 
@@ -41,6 +44,8 @@ def main():
             bubout, dataout, setout = sbub_lp_easy(
                 data_file,
                 count_file,
+                yr1,
+                yr2,
                 pow,
                 nstep,
                 opth,
@@ -69,6 +74,8 @@ def main():
                 'setout'    : setout_struct,
                 'stockcode' : stockcode,
                 'filesource': f"optout_{stockcode}",
+                'yr1'       : yr1,
+                'yr2'       : yr2,
                 'pow'       : float(pow),
                 'nstep'     : float(nstep),
                 'opth'      : float(opth),
@@ -79,6 +86,7 @@ def main():
 
             # ──────────────── Split adjustment ────────────────
             print(f"Running split adjustment for {stockcode}...")
+            adjout, dataout_split, bubout_split = sbub_split(stockcode, matfile, yr1, yr2)
             adjout, dataout_split, bubout_split = sbub_split(stockcode, matfile)
             adjout_clean = {k: (v if v is not None else np.array([])) for k,v in adjout.items()}
             savemat(splitfile, {'adjout': adjout_clean})
@@ -90,4 +98,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
