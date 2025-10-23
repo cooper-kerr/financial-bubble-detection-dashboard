@@ -13,7 +13,7 @@ def main():
                      'MSFT', 'NVDA', 'T', 'TSLA', 'WFC', 'XOM', '^SPX']
     
     # ──────────────── Parameters ────────────────
-    current_year = datetime.now.year()
+    current_year = datetime.now().year
     yr1, yr2 = '2025', str(current_year)
     pow, nstep, opth, hnumsd = 2, 200, 0, 5
 
@@ -96,3 +96,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
