@@ -9,12 +9,14 @@ import { PriceDifferenceChart } from "./PriceDifferenceChart";
 export function Dashboard() {
 	const {
 		selectedStock,
+		dataSource,
 		startDate,
 		endDate,
 		bubbleData,
 		loading,
 		error,
 		setSelectedStock,
+		setDataSource,
 		setDateRange,
 		resetDateRange,
 		getChartData,
@@ -45,9 +47,11 @@ export function Dashboard() {
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 				<DashboardControls
 					selectedStock={selectedStock}
+					dataSource={dataSource}
 					startDate={startDate}
 					endDate={endDate}
 					onStockChange={setSelectedStock}
+					onDataSourceChange={setDataSource}
 					onDateRangeChange={setDateRange}
 					onResetDateRange={resetDateRange}
 					availableDateRange={availableDateRange}

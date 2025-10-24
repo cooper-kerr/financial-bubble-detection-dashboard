@@ -102,6 +102,8 @@ export const STOCK_LIST = [
 
 export type StockCode = (typeof STOCK_LIST)[number];
 
+export type DataSource = "WRDS" | "Yahoo Finance";
+
 export const TAU_COLORS = {
 	tau1: "#1f77b4", // Blue
 	tau2: "#2ca02c", // Green
