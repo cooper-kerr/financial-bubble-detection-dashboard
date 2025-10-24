@@ -37,6 +37,7 @@ async function uploadJsonFiles() {
       const blob = await put(filename, fileContent, {
         access: 'public',
         contentType: 'application/json',
+        allowOverwrite: true,
       });
 
       console.log(`✅ Uploaded ${filename} -> ${blob.url}`);
