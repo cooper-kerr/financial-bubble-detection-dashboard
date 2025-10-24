@@ -79,7 +79,8 @@ export async function loadBubbleData(
 				BLOB_URLS[stockCode] ||
 				`/data/bubble_data_${stockCode}_splitadj_1996to2023.json`;
 		} else {
-			url = `/data/bubble_data_${stockCode}_splitadj_1996to2030.json`;
+			const currentYear = new Date().getFullYear();
+			url = `/data/bubble_data_${stockCode}_splitadj_2025to${currentYear}.json`;
 		}
 
 		const response = await fetch(url);
