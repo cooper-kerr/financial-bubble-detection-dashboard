@@ -146,6 +146,15 @@ for ticker_symbol in tickers:
         on=['date', 'cp_flag', 'maturity_group'], 
         how='inner'
     )
+    strike_counts = all_options.groupby(['date', 'cp_flag', 'tauday'])['X'].nunique().reset_index(name='n_strikes')
+    valid_strikes = strike_counts[strike_counts['n_strikes'] >= 2]
+    
+    all_options = all_options.merge(
+        valid_strikes[['date', 'cp_flag', 'tauday']],
+        on=['date', 'cp_flag', 'tauday'],
+        how='inner'
+    )
+
     cleancalldata1 = all_options[(all_options['tau'] > 8) & (all_options['tau'] <= 365)]
     cleancalldata = (
         cleancalldata1
