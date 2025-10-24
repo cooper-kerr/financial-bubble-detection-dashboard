@@ -21,9 +21,9 @@ IMG_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Stock list
-stockcodelist = ['SPX', 'AAPL', 'BAC', 'C', 'MSFT', 'FB', 'GE', 'INTC', 'CSCO',
-                 'BABA', 'WFC', 'JPM', 'AMD', 'TWTR', 'F', 'TSLA', 'GOOG', 'T',
-                 'XOM', 'AMZN', 'MS', 'NVDA', 'AIG', 'GM', 'DIS', 'BA']
+stockcodelist = [ "^SPX", "AAPL", "BAC", "C", "MSFT", "META", "GE", "INTC", "CSCO", "BABA",
+                  "WFC", "JPM", "AMD", "F", "TSLA", "GOOG", "T", "XOM", "AMZN",
+                  "MS", "NVDA", "AIG", "GM", "DIS", "BA"] 
 
 # Helper functions (keeping all existing helper functions)
 def datenum(date_str, fmt='%d-%b-%Y'):
@@ -66,8 +66,8 @@ def process_stock(stockcode):
     print(f"Processing {stockcode}...")
     print(f"{'='*50}")
 
-    # Set up the parameters
-    yr1, yr2 = '1996', '2030'
+    current_year = datetime.now().year
+    yr1, yr2 = '2025', str(current_year)
     startday = f'01JAN{yr1}'
     endday   = f'31DEC{yr2}'
     nplots = 3
@@ -79,6 +79,7 @@ def process_stock(stockcode):
     splitadj_files = list(SCRIPT_DIR.glob(f"optout_{stockcode}_*_splitadj_h0_hsd5_nstep200.mat"))
     if splitadj_files:
         dataname2_path = splitadj_files[0]
+        print(f"Using split-adjusted .mat file: {dataname2_path}")
     else:
         print(f"No split-adjusted .mat file found for {stockcode}")
         return False
@@ -88,6 +89,7 @@ def process_stock(stockcode):
     ref_files = [f for f in ref_files if "_splitadj_" not in f.name]
     if ref_files:
         reference_file_path = ref_files[0]
+        print(f"Using reference .mat file: {reference_file_path}")
     else:
         print(f"No reference .mat file found for {stockcode}")
         return False
@@ -419,13 +421,13 @@ def process_stock(stockcode):
         fig.tight_layout()
 
         # Save figure as EPS and PNG
-        base = f"bub{cptag[j]}_{stockcode}_splitadj_{yr1}to{yr2}"
+        base = f"bub{cptag[j]}_{stockcode.lstrip('^')}_splitadj_{yr1}to{yr2}"
         plt.savefig(IMG_DIR.joinpath(f"{base}.eps"), format="eps")
         plt.savefig(IMG_DIR.joinpath(f"{base}.png"), format="png")
         plt.close(fig)
 
     # Export JSON data with consistent naming
-    json_filename = f"bubble_data_{stockcode}_splitadj_{yr1}to{yr2}.json"
+    json_filename = f"bubble_data_{stockcode.lstrip('^')}_splitadj_{yr1}to{yr2}.json"
     json_filepath = DATA_DIR.joinpath(json_filename)
 
     with open(json_filepath, 'w') as f:
