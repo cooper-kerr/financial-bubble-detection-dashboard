@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from scipy.io import savemat
 from sbub_lp_easy import sbub_lp_easy
 from sbub_split import sbub_split
@@ -10,10 +11,10 @@ def main():
     stockcodelist = ['AAPL', 'AIG', 'AMD', 'AMZN', 'BA', 'BABA', 'BAC', 'C', 'CSCO',
                      'DIS', 'F', 'GE', 'GM', 'GOOG', 'INTC', 'JPM', 'META', 'MS', 
                      'MSFT', 'NVDA', 'T', 'TSLA', 'WFC', 'XOM', '^SPX']
-
-    # ──────────────── Parameters ────────────────
-    yr1, yr2 = '2025', '2025'
     
+    # ──────────────── Parameters ────────────────
+    current_year = datetime.now().year
+    yr1, yr2 = '2025', str(current_year)
     pow, nstep, opth, hnumsd = 2, 200, 0, 5
 
     output_dir = "data/mat"
@@ -33,10 +34,8 @@ def main():
 
             # Build MAT filenames
             dataname  = f"optout_{stockcode}_{yr1}to{yr2}_h{opth}_hsd{hnumsd}_nstep{nstep}"
-            dataname  = f"optout_{stockcode}_to_h{opth}_hsd{hnumsd}_nstep{nstep}"
             matfile   = os.path.join(output_dir, dataname + ".mat")
             dataname2 = f"optout_{stockcode}_{yr1}to{yr2}_splitadj_h{opth}_hsd{hnumsd}_nstep{nstep}"
-            dataname2 = f"optout_{stockcode}_to_splitadj_h{opth}_hsd{hnumsd}_nstep{nstep}"
             splitfile = os.path.join(output_dir, dataname2 + ".mat")
 
             # ──────────────── Bubble estimation ────────────────
@@ -87,7 +86,6 @@ def main():
             # ──────────────── Split adjustment ────────────────
             print(f"Running split adjustment for {stockcode}...")
             adjout, dataout_split, bubout_split = sbub_split(stockcode, matfile, yr1, yr2)
-            adjout, dataout_split, bubout_split = sbub_split(stockcode, matfile)
             adjout_clean = {k: (v if v is not None else np.array([])) for k,v in adjout.items()}
             savemat(splitfile, {'adjout': adjout_clean})
             print(f"✅ Saved split-adjusted results to {splitfile}\n")
