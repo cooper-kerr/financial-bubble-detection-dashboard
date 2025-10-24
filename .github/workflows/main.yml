@@ -2,7 +2,7 @@ name: Daily Yahoo Finance Bubble Update
 
 on:
   schedule:
-    - cron: '30 21 * * *'  # 21:30 UTC daily
+    - cron: '59 20 * * *'  # 20:59 UTC daily
   workflow_dispatch:
 
 jobs:
@@ -27,7 +27,6 @@ jobs:
 
       - name: Run CSV scraper & generate MAT files
         run: |
-          python scripts/YF-Data-Scraper.py
           python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
