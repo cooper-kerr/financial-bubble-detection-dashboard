@@ -421,13 +421,13 @@ def process_stock(stockcode):
         fig.tight_layout()
 
         # Save figure as EPS and PNG
-        base = f"bub{cptag[j]}_{stockcode}_splitadj_{yr1}to{yr2}"
+        base = f"bub{cptag[j]}_{stockcode.lstrip('^')}_splitadj_{yr1}to{yr2}"
         plt.savefig(IMG_DIR.joinpath(f"{base}.eps"), format="eps")
         plt.savefig(IMG_DIR.joinpath(f"{base}.png"), format="png")
         plt.close(fig)
 
     # Export JSON data with consistent naming
-    json_filename = f"bubble_data_{stockcode}_splitadj_{yr1}to{yr2}.json"
+    json_filename = f"bubble_data_{stockcode.lstrip('^')}_splitadj_{yr1}to{yr2}.json"
     json_filepath = DATA_DIR.joinpath(json_filename)
 
     with open(json_filepath, 'w') as f:
