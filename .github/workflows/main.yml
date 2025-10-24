@@ -66,6 +66,7 @@ jobs:
         run: |
           export PATH="$HOME/.bun/bin:$PATH"
           export BLOB_READ_WRITE_TOKEN=${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          export OVERWRITE=true
           bun run scripts/upload-to-blob.ts
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
