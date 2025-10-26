@@ -150,7 +150,7 @@ for ticker_symbol in tickers:
     valid_strikes = strike_counts[strike_counts['n_strikes'] >= 2]
     
     all_options = all_options.merge(
-        valid_strikes[['date', 'cp_flag', 'tauday']],
+        valid_strikes[['date', 'cp_flag', 'tau']],
         on=['date', 'cp_flag', 'tau'],
         how='inner'
     )
