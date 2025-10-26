@@ -146,7 +146,7 @@ for ticker_symbol in tickers:
         on=['date', 'cp_flag', 'maturity_group'], 
         how='inner'
     )
-    strike_counts = all_options.groupby(['date', 'cp_flag', 'tau'])['X'].nunique().reset_index(name='n_strikes')
+    strike_counts = all_options.groupby(['date', 'cp_flag', 'tau'])['strike'].nunique().reset_index(name='n_strikes')
     valid_strikes = strike_counts[strike_counts['n_strikes'] >= 2]
     
     all_options = all_options.merge(
