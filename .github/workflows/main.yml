@@ -27,7 +27,7 @@ jobs:
 
       - name: Run CSV scraper & generate MAT files
         run: |
-          python scripts/YF-Data-Scraper
+          python scripts/YF-Data-Scraper.py
           python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
