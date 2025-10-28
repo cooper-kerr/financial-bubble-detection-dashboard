@@ -273,7 +273,6 @@ for ticker_symbol in tickers:
     else:
         print(f"✅ Row count check passed: {actual_count} rows match optcount for {yesterday}")
 
-    optcount = optcount.drop(columns=['dateraw'])
     
     count_file = os.path.join(save_folder, f"{filesource}_count.csv")
     data_file = os.path.join(save_folder, f"{filesource}.csv")
