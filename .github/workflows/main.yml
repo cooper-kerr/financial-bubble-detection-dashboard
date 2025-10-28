@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  scrape-and-process:
+  update-csvs:
+    name: Scrape & Commit CSV Updates
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,9 +26,50 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy yfinance scipy fredapi matplotlib
 
-      - name: Run CSV scraper & generate MAT files
+      - name: Run CSV scraper
         run: |
           python scripts/YF-Data-Scraper.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+      - name: Commit CSV updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n "$(git status --porcelain data/csv)" ]]; then
+            git add data/csv
+            git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push
+            echo "✅ CSV updates committed and pushed."
+          else
+            echo "⚠️ No changes detected — skipping commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-mat-json:
+    name: Generate MAT & JSON Files
+    runs-on: ubuntu-latest
+    needs: update-csvs
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scipy fredapi matplotlib
+
+      - name: Run MAT generator
+        run: |
           python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -71,17 +113,17 @@ jobs:
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
 
-      - name: Commit small CSV/JSON updates
+      - name: Commit JSON updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain data/csv public/data)" ]]; then
-            git add data/csv public/data
-            git commit -m "Automated CSV/JSON update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          if [[ -n "$(git status --porcelain public/data)" ]]; then
+            git add public/data
+            git commit -m "Automated JSON update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push
-            echo "✅ CSV/JSON updates committed and pushed."
+            echo "✅ JSON updates committed and pushed."
           else
-            echo "⚠️ No changes detected — skipping commit."
+            echo "⚠️ No JSON changes detected — skipping commit."
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
