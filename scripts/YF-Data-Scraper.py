@@ -16,25 +16,6 @@ tickers = [
     if f.startswith("optout_") and not f.endswith("_count.csv")
 ]
 
-def should_update_csv(ticker_symbol, csv_dir="data/csv"):
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%d%b%Y')
-    csv_file = Path(csv_dir) / f"optout_{ticker_symbol}.csv"
-    
-    if not csv_file.exists():
-        return True  # CSV doesn't exist, need to update
-    
-    try:
-        df = pd.read_csv(csv_file)
-        if 'Date' in df.columns and yesterday in df['Date'].values:
-            print(f"Skipping {ticker_symbol}: already has data for {yesterday}")
-            return False
-        return True
-    except Exception as e:
-        print(f"Warning: could not read CSV for {ticker_symbol}. Will attempt update. Error: {e}")
-        return True
-
-# Directory where CSV files liv
-
 # FRED API key from environment variable
 api_key = os.getenv("FRED_API_KEY")
 if not api_key:
@@ -42,10 +23,6 @@ if not api_key:
 fred = Fred(api_key=api_key)
 
 for ticker_symbol in tickers:
-    if not should_update_csv(ticker_symbol):
-        continue
-
-
     
     print(f"Running scraper for {ticker_symbol}...")
 
