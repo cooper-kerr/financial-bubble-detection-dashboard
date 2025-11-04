@@ -257,12 +257,12 @@ for ticker_symbol in tickers:
     indexopt3.columns = ['dateraw','cp_flag','exdateraw','tauday','X','s','tr','money','oprice','volume','iv','deltachk']
 
     optcount = indexopt3.groupby('dateraw').size().reset_index(name='count')
-    optcount['date'] = pd.to_datetime(optcount['dateraw'], errors='coerce')
-    optcount['date'] = optcount['date'].dt.strftime('%d%b%Y')
+    optcount['dateraw'] = pd.to_datetime(optcount['dateraw'], errors='coerce')
+    optcount['dateraw'] = optcount['dateraw'].dt.strftime('%d%b%Y')
     yesterday = (datetime.now() - timedelta(days=1)).strftime('%d%b%Y')
 
     indexopt3 = indexopt3[indexopt3['dateraw'] == yesterday]
-    optcount = optcount[optcount['date'] == yesterday]
+    optcount = optcount[optcount['dateraw'] == yesterday]
 
     expected_count = optcount['count'].sum()  # total expected rows
     actual_count = indexopt3.shape[0]         # actual rows in indexopt3
@@ -281,7 +281,7 @@ for ticker_symbol in tickers:
     if os.path.exists(count_file):
         existing_count = pd.read_csv(count_file)
         optcount = pd.concat([existing_count, optcount], ignore_index=True)
-        optcount.drop_duplicates(subset=["date"], keep="last", inplace=True)
+        optcount.drop_duplicates(subset=["dateraw"], keep="last", inplace=True)
     optcount.to_csv(count_file, index=False)
 
     # Append indexopt3
