@@ -31,11 +31,11 @@ for ticker_symbol in tickers:
     save_folder = csv_dir
     os.makedirs(save_folder, exist_ok=True)
 
-
-    ticker = yf.Ticker(ticker_symbol)
     
+    ticker = yf.Ticker(ticker_symbol)
+    eastern = pytz.timezone("US/Eastern")
     start_date = "1996-01-01"
-    end_date = datetime.now("US/Eastern").strftime("%Y-%m-%d")
+    end_date = datetime.now(eastern).strftime("%Y-%m-%d")
     
     historical_data = ticker.history(start=start_date, end=end_date)
     closing_prices = historical_data[['Close']].reset_index()
@@ -259,7 +259,7 @@ for ticker_symbol in tickers:
     optcount = indexopt3.groupby('dateraw').size().reset_index(name='count')
     optcount['dateraw'] = pd.to_datetime(optcount['dateraw'], errors='coerce')
     optcount['dateraw'] = optcount['dateraw'].dt.strftime('%d%b%Y')
-    today = datetime.now("US/Eastern").strftime('%d%b%Y')
+    today = datetime.now(eastern).strftime('%d%b%Y')
 
     indexopt3 = indexopt3[indexopt3['dateraw'] == today]
     optcount = optcount[optcount['dateraw'] == today]
