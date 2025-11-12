@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from fredapi import Fred
-from scipy.stats import norm
+from scipy.stats import norm 
+import pytz
 
 csv_dir = "data/csv"
 
@@ -30,12 +31,11 @@ for ticker_symbol in tickers:
     save_folder = csv_dir
     os.makedirs(save_folder, exist_ok=True)
 
-    start_date = "1996-01-01"
-    end_date = datetime.now().strftime("%Y-%m-%d")
+
     ticker = yf.Ticker(ticker_symbol)
     
     start_date = "1996-01-01"
-    end_date = datetime.now().strftime("%Y-%m-%d")
+    end_date = datetime.now(ny_tz).strftime("%Y-%m-%d")
     
     historical_data = ticker.history(start=start_date, end=end_date)
     closing_prices = historical_data[['Close']].reset_index()
@@ -55,7 +55,7 @@ for ticker_symbol in tickers:
     
     ticker = yf.Ticker(ticker_symbol)
     expirations = ticker.options
-    today = datetime.now()
+    today = datetime.now(ny_tz)
     
     # include options expiring within the next 365 days
     expirations_this_year = [
@@ -259,10 +259,10 @@ for ticker_symbol in tickers:
     optcount = indexopt3.groupby('dateraw').size().reset_index(name='count')
     optcount['dateraw'] = pd.to_datetime(optcount['dateraw'], errors='coerce')
     optcount['dateraw'] = optcount['dateraw'].dt.strftime('%d%b%Y')
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%d%b%Y')
+    today = (datetime.now(ny_tz).strftime('%d%b%Y')
 
-    indexopt3 = indexopt3[indexopt3['dateraw'] == yesterday]
-    optcount = optcount[optcount['dateraw'] == yesterday]
+    indexopt3 = indexopt3[indexopt3['dateraw'] == today]
+    optcount = optcount[optcount['dateraw'] == today]
 
     expected_count = optcount['count'].sum()  # total expected rows
     actual_count = indexopt3.shape[0]         # actual rows in indexopt3
