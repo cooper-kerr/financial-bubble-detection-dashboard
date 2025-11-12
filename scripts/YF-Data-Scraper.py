@@ -254,7 +254,7 @@ for ticker_symbol in tickers:
         minstk=('strike', 'min'),
         maxstk=('strike', 'max')
     ).reset_index()
-    indexopt3.columns = ['dateraw','cp_flag','exdateraw','tauday','X','s','tr','money','oprice','volume','iv','deltachk']
+    indexopt3.columns = ['dateraw','cp_flag','exdateraw','tauday','x','s','tr','money','oprice','volume','iv','deltachk']
 
     optcount = indexopt3.groupby('dateraw').size().reset_index(name='count')
     optcount['dateraw'] = pd.to_datetime(optcount['dateraw'], errors='coerce')
