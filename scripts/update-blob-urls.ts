@@ -1,37 +1,57 @@
+import { list } from '@vercel/blob';
+import { config } from 'dotenv';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
-// This script helps you update the BLOB_URLS in dataLoader.ts
-// Run this after uploading files to get the URL mapping
+// Load environment variables
+config({ path: '.env.local' });
 
-const urlMapping = {
-  // Paste your URL mapping here from the upload script output
-  // Example:
-  // "AAPL": "https://your-blob-store.vercel-storage.com/bubble_data_AAPL_splitadj_1996to2023.json",
-  // "SPX": "https://your-blob-store.vercel-storage.com/bubble_data_SPX_splitadj_1996to2023.json",
-  // ... etc
-};
+const BLOB_READ_WRITE_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
-function updateBlobUrls() {
-  const dataLoaderPath = join(process.cwd(), 'src', 'utils', 'dataLoader.ts');
-  let content = readFileSync(dataLoaderPath, 'utf-8');
-  
-  // Find the BLOB_URLS object and replace it
-  const blobUrlsRegex = /const BLOB_URLS: Record<StockCode, string> = \{[\s\S]*?\};/;
-  
-  const newBlobUrls = `const BLOB_URLS: Record<StockCode, string> = ${JSON.stringify(urlMapping, null, 2)};`;
-  
-  content = content.replace(blobUrlsRegex, newBlobUrls);
-  
-  writeFileSync(dataLoaderPath, content, 'utf-8');
-  
-  console.log('✅ Updated BLOB_URLS in dataLoader.ts');
-  console.log('📁 File:', dataLoaderPath);
+if (!BLOB_READ_WRITE_TOKEN) {
+  console.error('❌ BLOB_READ_WRITE_TOKEN environment variable is required');
+  process.exit(1);
 }
 
-if (Object.keys(urlMapping).length === 0) {
-  console.log('❌ Please update the urlMapping object in this script first!');
-  console.log('📋 Copy the URL mapping from the upload script output');
-} else {
-  updateBlobUrls();
+async function updateBlobUrls() {
+  try {
+    console.log('🔍 Fetching blob URLs from Vercel...');
+    const { blobs } = await list();
+
+    if (!blobs || blobs.length === 0) {
+      throw new Error('No blobs found in Vercel storage.');
+    }
+
+    // Create URL mapping
+    const urlMapping: Record<string, string> = {};
+    blobs.forEach(blob => {
+      const match = blob.pathname.match(/bubble_data_(.+)_splitadj_1996to2023\.json$/);
+      if (match) {
+        const stockCode = match[1];
+        urlMapping[stockCode] = blob.url;
+        console.log(`✅ ${stockCode}: ${blob.url}`);
+      }
+    });
+
+    // Save mapping for reference (optional)
+    writeFileSync(join(process.cwd(), 'blob_mapping.json'), JSON.stringify(urlMapping, null, 2), 'utf-8');
+    console.log('📄 Saved blob_mapping.json');
+
+    // Update dataLoader.ts
+    const dataLoaderPath = join(process.cwd(), 'src', 'utils', 'dataLoader.ts');
+    let content = readFileSync(dataLoaderPath, 'utf-8');
+
+    const blobUrlsRegex = /const BLOB_URLS: Record<StockCode, string> = \{[\s\S]*?\};/;
+    const newBlobUrls = `const BLOB_URLS: Record<StockCode, string> = ${JSON.stringify(urlMapping, null, 2)};`;
+
+    content = content.replace(blobUrlsRegex, newBlobUrls);
+    writeFileSync(dataLoaderPath, content, 'utf-8');
+
+    console.log('✅ Updated BLOB_URLS in dataLoader.ts');
+  } catch (error) {
+    console.error('❌ Failed to update BLOB_URLS:', error);
+    process.exit(1);
+  }
 }
+
+updateBlobUrls();
