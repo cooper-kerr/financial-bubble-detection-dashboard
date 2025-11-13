@@ -9,14 +9,14 @@ import type {
 } from "../types/bubbleData";
 
 // -----------------------------
-// WRDS / Static JSON URLs (unchanged branch)
+// WRDS / Static JSON URLs (unchanged)
 // -----------------------------
 const BLOB_URLS: Record<StockCode, string> = {
-  // Keep empty or add static URLs if available
+  // Add WRDS or static JSON URLs if needed
 };
 
 // -----------------------------
-// Yahoo Finance JSON URLs (to be updated automatically)
+// Yahoo Finance JSON URLs (pre-populated)
 // -----------------------------
 const YAHOO_BLOB_URLS: Record<StockCode, string> = {
   AAPL: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AAPL_data.json",
@@ -41,26 +41,22 @@ const YAHOO_BLOB_URLS: Record<StockCode, string> = {
   NVDA: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/NVDA_data.json",
   SPX: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/SPX_data.json",
   TSLA: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/TSLA_data.json",
-  TWTR: "https://fposl6nafeqvtwpj.public.blob.storage.vercel.com/TWTR_data.json",
+  TWTR: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/TWTR_data.json",
   T: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/T_data.json",
   WFC: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/WFC_data.json",
   XOM: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/XOM_data.json",
 };
 
 // -----------------------------
-// Update Yahoo Finance URLs
+// Update Yahoo Finance URLs (automation)
 // -----------------------------
-
 export function updateYahooBlobUrls(urlMapping: Record<string, string>): void {
-  Object.entries(urlMapping).forEach(([stock, url]) => {
-    if (YAHOO_BLOB_URLS.hasOwnProperty(stock)) {
+  for (const [stock, url] of Object.entries(urlMapping)) {
+    if (stock in YAHOO_BLOB_URLS) {
       YAHOO_BLOB_URLS[stock as StockCode] = url;
-    } else {
-      console.warn(`⚠️ Skipped unknown stock code in mapping: ${stock}`);
     }
-  });
-  console.log("✅ YAHOO_BLOB_URLS updated successfully");
-}
+  }
+  console.log("✅ Updated YAHOO_BLOB_URLS with automation mapping");
 }
 
 // -----------------------------
@@ -70,32 +66,102 @@ export async function loadBubbleData(
   stockCode: StockCode,
   dataSource: DataSource
 ): Promise<BubbleData> {
-  try {
-    let url: string;
-    if (dataSource === "WRDS") {
-      url = BLOB_URLS[stockCode] || `/data/bubble_data_${stockCode}_splitadj_1996to2023.json`;
-    } else {
-      const currentYear = new Date().getFullYear();
-      url =
-        YAHOO_BLOB_URLS[stockCode] ||
-        `/data/bubble_data_${stockCode}_splitadj_2025to${currentYear}.json`;
-    }
+  const url =
+    dataSource === "WRDS"
+      ? BLOB_URLS[stockCode] || `/data/bubble_data_${stockCode}_splitadj_1996to2023.json`
+      : YAHOO_BLOB_URLS[stockCode] || `/data/bubble_data_${stockCode}_splitadj_2025to${new Date().getFullYear()}.json`;
 
-    console.log(`📡 Fetching ${dataSource} data for ${stockCode} from:`, url);
-
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch ${stockCode} (${dataSource}): ${res.statusText}`);
-    }
-
-    const data: BubbleData = await res.json();
-    return data;
-  } catch (err) {
-    console.error(`❌ Error loading bubble data for ${stockCode}:`, err);
-    throw err;
-  }
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to load ${stockCode} from ${dataSource}: ${response.statusText}`);
+  return response.json();
 }
 
 // -----------------------------
-// Other utility functions (unchanged)...
-// transformDataForChart, getDateRange, loadRegularPriceData, calculatePriceDifferences
+// Transform bubble data for chart
+// -----------------------------
+export function transformDataForChart(
+  bubbleData: BubbleData,
+  optionType: OptionType,
+  startDate?: Date,
+  endDate?: Date
+): ChartDataPoint[] {
+  let filtered = bubbleData.time_series_data;
+
+  if (startDate || endDate) {
+    const s = startDate?.getTime();
+    const e = endDate?.getTime();
+    filtered = bubbleData.time_series_data.filter(pt => {
+      const t = new Date(pt.date).getTime();
+      if (s && t < s) return false;
+      if (e && t > e) return false;
+      return true;
+    });
+  }
+
+  return filtered.map(pt => ({
+    date: pt.date,
+    stockPrice: pt.stock_prices.adjusted,
+    tau1: pt.bubble_estimates.daily_grouped[0][optionType],
+    tau2: pt.bubble_estimates.daily_grouped[1][optionType],
+    tau3: pt.bubble_estimates.daily_grouped[2][optionType],
+  }));
+}
+
+// -----------------------------
+// Get date range
+// -----------------------------
+export function getDateRange(bubbleData: BubbleData): { min: Date; max: Date } {
+  const times = bubbleData.time_series_data.map(pt => new Date(pt.date).getTime());
+  return { min: new Date(Math.min(...times)), max: new Date(Math.max(...times)) };
+}
+
+// -----------------------------
+// Load regular price data
+// -----------------------------
+const REGULAR_PRICE_URLS = { ...YAHOO_BLOB_URLS };
+
+export async function loadRegularPriceData(stockCode: StockCode): Promise<RegularPriceData[]> {
+  const url = REGULAR_PRICE_URLS[stockCode];
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to load regular price data for ${stockCode}`);
+  const data = await resp.json();
+  if (Array.isArray(data.daily_data)) return data.daily_data.map(pt => ({ date: pt.date, price: pt.raw_price }));
+  if (Array.isArray(data)) return data.map(pt => ({ date: pt.date, price: pt.price ?? pt.close ?? pt.raw_price }));
+  return [];
+}
+
+// -----------------------------
+// Calculate price differences
+// -----------------------------
+export function calculatePriceDifferences(
+  bubbleData: BubbleData,
+  regularPriceData: RegularPriceData[],
+  startDate?: Date,
+  endDate?: Date
+): PriceDifferenceDataPoint[] {
+  const regularMap = new Map(regularPriceData.map(pt => [pt.date.split("T")[0], pt.price]));
+  let filtered = bubbleData.time_series_data;
+  if (startDate || endDate) {
+    const s = startDate?.getTime();
+    const e = endDate?.getTime();
+    filtered = filtered.filter(pt => {
+      const t = new Date(pt.date).getTime();
+      return (!s || t >= s) && (!e || t <= e);
+    });
+  }
+  return filtered.map(pt => {
+    const normDate = pt.date.split("T")[0];
+    const reg = regularMap.get(normDate);
+    if (reg === undefined) return null;
+    const adj = pt.stock_prices.adjusted;
+    const diff = adj - reg;
+    return { date: pt.date, adjustedPrice: adj, regularPrice: reg, difference: diff, percentageDifference: (diff / reg) * 100 };
+  }).filter(Boolean) as PriceDifferenceDataPoint[];
+}
+
+// -----------------------------
+// Dummy formatTooltipData (build dependency for BubbleChart.tsx)
+// -----------------------------
+export function formatTooltipData(...args: any[]): any {
+  return args;
+}
