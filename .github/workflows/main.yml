@@ -118,7 +118,7 @@ jobs:
           node-version: 20
 
       - name: Install Node dependencies
-        run: npm ci
+        run: npm install
 
       - name: Update Blob URLs in dataLoader.ts
         run: |
