@@ -35,7 +35,7 @@ for ticker_symbol in tickers:
     ticker = yf.Ticker(ticker_symbol)
     eastern = pytz.timezone("US/Eastern")
     start_date = "1996-01-01"
-    end_date = datetime.now(eastern).strftime("%Y-%m-%d")
+    end_date = (datetime.now(eastern) + timedelta(days=1)).strftime("%Y-%m-%d")
     
     historical_data = ticker.history(start=start_date, end=end_date)
     closing_prices = historical_data[['Close']].reset_index()
