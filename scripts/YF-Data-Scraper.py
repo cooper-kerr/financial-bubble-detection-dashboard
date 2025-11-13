@@ -260,7 +260,7 @@ for ticker_symbol in tickers:
     optcount['dateraw'] = pd.to_datetime(optcount['dateraw'], errors='coerce')
     optcount['dateraw'] = optcount['dateraw'].dt.strftime('%d%b%Y')
     today = datetime.now(eastern).strftime('%d%b%Y')
-
+    print(today)
     indexopt3 = indexopt3[indexopt3['dateraw'] == today]
     optcount = optcount[optcount['dateraw'] == today]
 
