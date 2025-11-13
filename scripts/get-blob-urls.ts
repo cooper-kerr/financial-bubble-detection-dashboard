@@ -1,5 +1,7 @@
 import { list } from '@vercel/blob';
 import { config } from 'dotenv';
+import { writeFileSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 // Load environment variables from .env.local
 config({ path: '.env.local' });
@@ -23,7 +25,6 @@ async function getBlobUrls() {
     const urlMapping: Record<string, string> = {};
     
     blobs.forEach(blob => {
-      // Extract stock code from filename: bubble_data_AAPL_splitadj_1996to2023.json -> AAPL
       const match = blob.pathname.match(/bubble_data_(.+)_splitadj_1996to2023\.json$/);
       if (match) {
         const stockCode = match[1];
@@ -31,12 +32,25 @@ async function getBlobUrls() {
         console.log(`✅ ${stockCode}: ${blob.url}`);
       }
     });
-    
-    console.log('\n📋 URL Mapping (copy this):');
-    console.log(JSON.stringify(urlMapping, null, 2));
-    
-    console.log('\n🔧 Next step: Update BLOB_URLS in src/utils/dataLoader.ts');
-    
+
+    // ====== ADD THIS: Write mapping to blob_mapping.json ======
+    const mappingPath = join(process.cwd(), 'blob_mapping.json');
+    writeFileSync(mappingPath, JSON.stringify(urlMapping, null, 2));
+    console.log(`💾 Saved URL mapping to ${mappingPath}`);
+    // ============================================================
+
+    // ====== OPTIONAL: Update dataLoader.ts automatically ======
+    const dataLoaderPath = join(process.cwd(), 'src', 'utils', 'dataLoader.ts');
+    let content = readFileSync(dataLoaderPath, 'utf-8');
+
+    const blobUrlsRegex = /const BLOB_URLS: Record<StockCode, string> = \{[\s\S]*?\};/;
+    const newBlobUrls = `const BLOB_URLS: Record<StockCode, string> = ${JSON.stringify(urlMapping, null, 2)};`;
+
+    content = content.replace(blobUrlsRegex, newBlobUrls);
+    writeFileSync(dataLoaderPath, content, 'utf-8');
+    console.log(`✅ Updated BLOB_URLS in ${dataLoaderPath}`);
+    // ============================================================
+
     return urlMapping;
   } catch (error) {
     console.error('❌ Error fetching blob URLs:', error);
