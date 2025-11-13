@@ -55,7 +55,7 @@ for ticker_symbol in tickers:
     
     ticker = yf.Ticker(ticker_symbol)
     expirations = ticker.options
-    today = datetime.now(eastern)
+    today = datetime.now()
     
     # include options expiring within the next 365 days
     expirations_this_year = [
