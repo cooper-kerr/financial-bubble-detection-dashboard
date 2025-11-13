@@ -27,8 +27,7 @@ jobs:
           pip install pandas numpy yfinance scipy fredapi matplotlib
 
       - name: Run CSV scraper
-        run: |
-          python scripts/YF-Data-Scraper.py
+        run: python scripts/YF-Data-Scraper.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
@@ -39,7 +38,6 @@ jobs:
           if [[ -n "$(git status --porcelain data/csv)" ]]; then
             git add data/csv
             git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git pull --rebase origin master
             git push origin master
             echo "✅ CSV updates committed and pushed."
           else
@@ -64,28 +62,15 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy scipy fredapi matplotlib
+          pip install pandas numpy scipy matplotlib fredapi
 
       - name: Run MAT generator
-        run: |
-          python scripts/sbub_run.py
+        run: python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-
-      - name: Upload MAT files as artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mat-files
-          path: data/mat/*.mat
-
-      - name: Download MAT files for JSON conversion
-        uses: actions/download-artifact@v4
-        with:
-          name: mat-files
-          path: data/mat
 
       - name: Convert MAT to JSON
         run: |
@@ -99,48 +84,28 @@ jobs:
           curl -fsSL https://bun.sh/install | bash
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
-      - name: Upload JSON to Vercel Blob
-        run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          export BLOB_READ_WRITE_TOKEN=${{ secrets.BLOB_READ_WRITE_TOKEN }}
-          export OVERWRITE=true
-          bun run scripts/upload-to-blob.ts > upload_log.txt
-        env:
-          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-
-      - name: Extract URL Mapping
-        run: |
-          grep -A 100 "URL Mapping" upload_log.txt | tail -n +2 > blob_mapping.json
-          echo "✅ Extracted blob_mapping.json"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install Node dependencies
-        run: npm install
-
-      - name: Update Blob URLs in dataLoader.ts
+      - name: Update BLOB URLs in dataLoader.ts
         run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun run scripts/update-blob-urls.ts
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit Updated dataLoader.ts
+      - name: Commit updated BLOB URLs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/utils/dataLoader.ts
-          git commit -m "Update blob URLs: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" || echo "⚠️ No URL changes detected"
-          git push origin master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if [[ -n "$(git status --porcelain src/utils/dataLoader.ts)" ]]; then
+            git add src/utils/dataLoader.ts blob_mapping.json
+            git commit -m "Automated BLOB URL update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push origin master
+            echo "✅ Updated BLOB URLs committed and pushed."
+          else
+            echo "⚠️ No BLOB URL changes detected — skipping commit."
+          fi
 
       - name: Trigger Vercel Redeploy
         run: |
-          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_${{ secrets.VERCEL_PROJECT_ID }}" \
+          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_<YOUR_PROJECT_ID>" \
           -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}"
-          echo "🚀 Triggered Vercel redeploy"
-        env:
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
