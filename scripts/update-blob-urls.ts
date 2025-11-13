@@ -1,57 +1,44 @@
-import { list } from '@vercel/blob';
-import { config } from 'dotenv';
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import fs from "fs";
+import path from "path";
+import fetch from "node-fetch";
+import { updateYahooBlobUrls } from "./dataLoader";
 
-// Load environment variables
-config({ path: '.env.local' });
+// Example mapping of stocks to source URLs (could be dynamic)
+const STOCKS: string[] = [
+  "AAPL", "SPX", "BAC", "C", "MSFT", "FB", "GE", "INTC", "CSCO",
+  "BABA", "WFC", "JPM", "AMD", "TWTR", "F", "TSLA", "GOOG", "T",
+  "XOM", "AMZN", "MS", "NVDA", "AIG", "GM", "DIS", "BA"
+];
 
-const BLOB_READ_WRITE_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+// Base URL where the latest Yahoo Finance JSONs are stored
+const BASE_URL = "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com";
 
-if (!BLOB_READ_WRITE_TOKEN) {
-  console.error('❌ BLOB_READ_WRITE_TOKEN environment variable is required');
-  process.exit(1);
+async function buildUpdatedMapping(): Promise<Record<string, string>> {
+  const mapping: Record<string, string> = {};
+
+  for (const stock of STOCKS) {
+    // You could add logic here to dynamically determine latest JSON URLs if needed
+    mapping[stock] = `${BASE_URL}/${stock}_data.json`;
+  }
+
+  return mapping;
 }
 
-async function updateBlobUrls() {
+async function updateDataLoader() {
   try {
-    console.log('🔍 Fetching blob URLs from Vercel...');
-    const { blobs } = await list();
+    const newMapping = await buildUpdatedMapping();
 
-    if (!blobs || blobs.length === 0) {
-      throw new Error('No blobs found in Vercel storage.');
-    }
+    // Update the in-memory mapping in dataLoader.ts
+    updateYahooBlobUrls(newMapping);
 
-    // Create URL mapping
-    const urlMapping: Record<string, string> = {};
-    blobs.forEach(blob => {
-      const match = blob.pathname.match(/bubble_data_(.+)_splitadj_1996to2023\.json$/);
-      if (match) {
-        const stockCode = match[1];
-        urlMapping[stockCode] = blob.url;
-        console.log(`✅ ${stockCode}: ${blob.url}`);
-      }
-    });
-
-    // Save mapping for reference (optional)
-    writeFileSync(join(process.cwd(), 'blob_mapping.json'), JSON.stringify(urlMapping, null, 2), 'utf-8');
-    console.log('📄 Saved blob_mapping.json');
-
-    // Update dataLoader.ts
-    const dataLoaderPath = join(process.cwd(), 'src', 'utils', 'dataLoader.ts');
-    let content = readFileSync(dataLoaderPath, 'utf-8');
-
-    const blobUrlsRegex = /const BLOB_URLS: Record<StockCode, string> = \{[\s\S]*?\};/;
-    const newBlobUrls = `const BLOB_URLS: Record<StockCode, string> = ${JSON.stringify(urlMapping, null, 2)};`;
-
-    content = content.replace(blobUrlsRegex, newBlobUrls);
-    writeFileSync(dataLoaderPath, content, 'utf-8');
-
-    console.log('✅ Updated BLOB_URLS in dataLoader.ts');
+    // Optional: persist mapping to a JSON file for reference
+    const filePath = path.resolve(__dirname, "../data/yahoo_blob_mapping.json");
+    fs.writeFileSync(filePath, JSON.stringify(newMapping, null, 2));
+    console.log(`✅ Updated Yahoo Finance URLs and saved mapping to ${filePath}`);
   } catch (error) {
-    console.error('❌ Failed to update BLOB_URLS:', error);
-    process.exit(1);
+    console.error("❌ Error updating Yahoo Finance URLs:", error);
   }
 }
 
-updateBlobUrls();
+// Run the update
+updateDataLoader();
