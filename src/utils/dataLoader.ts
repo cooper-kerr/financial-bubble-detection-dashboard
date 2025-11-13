@@ -12,46 +12,108 @@ import type {
 // WRDS / Static JSON URLs (unchanged branch)
 // -----------------------------
 const BLOB_URLS: Record<StockCode, string> = {
-  // Example: fill in your WRDS‑blob or static JSON URLs here if you have them
-  // AAPL: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AAPL_splitadj_1996to2023.json",
-  // ...
+  AAPL: "",
+  SPX: "",
+  BAC: "",
+  C: "",
+  MSFT: "",
+  FB: "",
+  GE: "",
+  INTC: "",
+  CSCO: "",
+  BABA: "",
+  WFC: "",
+  JPM: "",
+  AMD: "",
+  TWTR: "",
+  F: "",
+  TSLA: "",
+  GOOG: "",
+  T: "",
+  XOM: "",
+  AMZN: "",
+  MS: "",
+  NVDA: "",
+  AIG: "",
+  GM: "",
+  DIS: "",
+  BA: "",
 };
 
 // -----------------------------
 // Yahoo Finance JSON URLs (to be updated automatically)
 // -----------------------------
 const YAHOO_BLOB_URLS: Record<StockCode, string> = {
-  "AAPL": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AAPL_data.json",
-  "AIG": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AIG_data.json",
-  "AMD": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AMD_data.json",
-  "AMZN": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AMZN_data.json",
-  "BABA": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/BABA_data.json",
-  "BAC": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/BAC_data.json",
-  "BA": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/BA_data.json",
-  "CSCO": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/CSCO_data.json",
-  "C": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/C_data.json",
-  "DIS": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/DIS_data.json",
-  "FB": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/FB_data.json",
-  "F": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/F_data.json",
-  "GE": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/GE_data.json",
-  "GM": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/GM_data.json",
-  "GOOG": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/GOOG_data.json",
-  "INTC": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/INTC_data.json",
-  "JPM": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/JPM_data.json",
-  "MSFT": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/MSFT_data.json",
-  "MS": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/MS_data.json",
-  "NVDA": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/NVDA_data.json",
-  "SPX": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/SPX_data.json",
-  "TSLA": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/TSLA_data.json",
-  "TWTR": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/TWTR_data.json",
-  "T": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/T_data.json",
-  "WFC": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/WFC_data.json",
-  "XOM": "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/XOM_data.json"
+  AAPL: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AAPL_data.json",
+  AIG: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AIG_data.json",
+  AMD: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AMD_data.json",
+  AMZN: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/AMZN_data.json",
+  BABA: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/BABA_data.json",
+  BAC: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/BAC_data.json",
+  BA: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/BA_data.json",
+  CSCO: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/CSCO_data.json",
+  C: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/C_data.json",
+  DIS: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/DIS_data.json",
+  FB: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/FB_data.json",
+  F: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/F_data.json",
+  GE: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/GE_data.json",
+  GM: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/GM_data.json",
+  GOOG: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/GOOG_data.json",
+  INTC: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/INTC_data.json",
+  JPM: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/JPM_data.json",
+  MSFT: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/MSFT_data.json",
+  MS: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/MS_data.json",
+  NVDA: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/NVDA_data.json",
+  SPX: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/SPX_data.json",
+  TSLA: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/TSLA_data.json",
+  TWTR: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/TWTR_data.json",
+  T: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/T_data.json",
+  WFC: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/WFC_data.json",
+  XOM: "https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/XOM_data.json",
 };
 
 // -----------------------------
+// Exported function for BubbleChart tooltip
+// -----------------------------
+export function formatTooltipData(
+  dataPoint: ChartDataPoint,
+  tauGroupsInfo: { mean: number }[],
+) {
+  const date = new Date(dataPoint.date).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  return {
+    date,
+    stockPrice: dataPoint.stockPrice.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }),
+    tau1: {
+      name: `Tau Group 1 (${tauGroupsInfo[0]?.mean || 0.25})`,
+      estimate: dataPoint.tau1.mu.toFixed(3),
+      lowerBound: dataPoint.tau1.lb.toFixed(3),
+      upperBound: dataPoint.tau1.ub.toFixed(3),
+    },
+    tau2: {
+      name: `Tau Group 2 (${tauGroupsInfo[1]?.mean || 0.5})`,
+      estimate: dataPoint.tau2.mu.toFixed(3),
+      lowerBound: dataPoint.tau2.lb.toFixed(3),
+      upperBound: dataPoint.tau2.ub.toFixed(3),
+    },
+    tau3: {
+      name: `Tau Group 3 (${tauGroupsInfo[2]?.mean || 1.0})`,
+      estimate: dataPoint.tau3.mu.toFixed(3),
+      lowerBound: dataPoint.tau3.lb.toFixed(3),
+      upperBound: dataPoint.tau3.ub.toFixed(3),
+    },
+  };
+}
+
+// -----------------------------
 // Function to inject updated Yahoo Finance URLs
-// This will be called by your automation script.
 // -----------------------------
 export function updateYahooBlobUrls(urlMapping: Record<string, string>): void {
   for (const [stock, url] of Object.entries(urlMapping)) {
@@ -235,7 +297,6 @@ export function calculatePriceDifferences(
   console.log("calculatePriceDifferences called", {
     bubbleDataPoints: bubbleData.time_series_data.length,
     regularDataPoints: regularPriceData.length,
-    // ... other debug info
   });
 
   const regularPriceMap = new Map<string, number>();
