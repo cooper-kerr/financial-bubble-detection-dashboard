@@ -50,6 +50,7 @@ const YAHOO_BLOB_URLS: Record<StockCode, string> = {
 // -----------------------------
 // Update Yahoo Finance URLs
 // -----------------------------
+
 export function updateYahooBlobUrls(urlMapping: Record<string, string>): void {
   Object.entries(urlMapping).forEach(([stock, url]) => {
     if (YAHOO_BLOB_URLS.hasOwnProperty(stock)) {
@@ -59,6 +60,7 @@ export function updateYahooBlobUrls(urlMapping: Record<string, string>): void {
     }
   });
   console.log("✅ YAHOO_BLOB_URLS updated successfully");
+}
 }
 
 // -----------------------------
