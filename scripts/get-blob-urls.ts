@@ -3,7 +3,6 @@ import { config } from 'dotenv';
 import { writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-// Load environment variables from .env.local
 config({ path: '.env.local' });
 
 const BLOB_READ_WRITE_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
@@ -18,14 +17,13 @@ async function getBlobUrls() {
     console.log('🔍 Fetching blob URLs...');
     
     const { blobs } = await list();
-    
     console.log(`📁 Found ${blobs.length} blobs`);
-    
-    // Create URL mapping for stock codes
+
     const urlMapping: Record<string, string> = {};
-    
+
     blobs.forEach(blob => {
-      const match = blob.pathname.match(/bubble_data_(.+)_splitadj_1996to2023\.json$/);
+      // Only match Yahoo Finance JSONs (adjust pattern if needed)
+      const match = blob.pathname.match(/bubble_data_(.+)_yahoo\.json$/);
       if (match) {
         const stockCode = match[1];
         urlMapping[stockCode] = blob.url;
@@ -33,13 +31,11 @@ async function getBlobUrls() {
       }
     });
 
-    // ====== ADD THIS: Write mapping to blob_mapping.json ======
     const mappingPath = join(process.cwd(), 'blob_mapping.json');
     writeFileSync(mappingPath, JSON.stringify(urlMapping, null, 2));
     console.log(`💾 Saved URL mapping to ${mappingPath}`);
-    // ============================================================
 
-    // ====== OPTIONAL: Update dataLoader.ts automatically ======
+    // Update dataLoader.ts automatically
     const dataLoaderPath = join(process.cwd(), 'src', 'utils', 'dataLoader.ts');
     let content = readFileSync(dataLoaderPath, 'utf-8');
 
@@ -49,7 +45,6 @@ async function getBlobUrls() {
     content = content.replace(blobUrlsRegex, newBlobUrls);
     writeFileSync(dataLoaderPath, content, 'utf-8');
     console.log(`✅ Updated BLOB_URLS in ${dataLoaderPath}`);
-    // ============================================================
 
     return urlMapping;
   } catch (error) {
