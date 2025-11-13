@@ -39,6 +39,7 @@ jobs:
           if [[ -n "$(git status --porcelain data/csv)" ]]; then
             git add data/csv
             git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git pull --rebase origin master
             git push origin master
             echo "✅ CSV updates committed and pushed."
           else
