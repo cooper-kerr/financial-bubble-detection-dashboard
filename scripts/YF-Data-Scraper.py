@@ -112,7 +112,6 @@ for ticker_symbol in tickers:
             return '6-12M'
     
     all_options['maturity_group'] = all_options['tau_years'].apply(classify_maturity_group)
-    print(all_options.head(5))
     # Filter out groups with fewer than 3 observations per date, cp_flag, maturity_group
     group_counts = all_options.groupby(['date', 'cp_flag', 'maturity_group']).size().reset_index(name='n_obs')
     valid_groups = group_counts[group_counts['n_obs'] >= 3]
@@ -260,8 +259,7 @@ for ticker_symbol in tickers:
     optcount['dateraw'] = pd.to_datetime(optcount['dateraw'], errors='coerce')
     optcount['dateraw'] = optcount['dateraw'].dt.strftime('%d%b%Y')
     today = datetime.now(eastern).strftime('%d%b%Y')
-    print(indexopt3.head(5))
-    print(today)
+    print(indexopt3.tail(5)) 
     indexopt3 = indexopt3[indexopt3['dateraw'] == today]
     optcount = optcount[optcount['dateraw'] == today]
 
