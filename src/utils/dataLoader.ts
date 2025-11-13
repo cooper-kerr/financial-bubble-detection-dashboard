@@ -9,34 +9,7 @@ import type {
 } from "../types/bubbleData";
 
 // Vercel Blob Storage URLs for each stock
-const BLOB_URLS: Record<StockCode, string> = {
-	AAPL: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AAPL_splitadj_1996to2023.json",
-	AIG: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AIG_splitadj_1996to2023.json",
-	AMD: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AMD_splitadj_1996to2023.json",
-	AMZN: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AMZN_splitadj_1996to2023.json",
-	BABA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_BABA_splitadj_1996to2023.json",
-	BAC: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_BAC_splitadj_1996to2023.json",
-	BA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_BA_splitadj_1996to2023.json",
-	CSCO: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_CSCO_splitadj_1996to2023.json",
-	C: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_C_splitadj_1996to2023.json",
-	DIS: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_DIS_splitadj_1996to2023.json",
-	FB: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_FB_splitadj_1996to2023.json",
-	F: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_F_splitadj_1996to2023.json",
-	GE: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_GE_splitadj_1996to2023.json",
-	GM: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_GM_splitadj_1996to2023.json",
-	GOOG: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_GOOG_splitadj_1996to2023.json",
-	INTC: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_INTC_splitadj_1996to2023.json",
-	JPM: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_JPM_splitadj_1996to2023.json",
-	MSFT: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_MSFT_splitadj_1996to2023.json",
-	MS: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_MS_splitadj_1996to2023.json",
-	NVDA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_NVDA_splitadj_1996to2023.json",
-	SPX: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_SPX_splitadj_1996to2023.json",
-	TSLA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_TSLA_splitadj_1996to2023.json",
-	TWTR: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_TWTR_splitadj_1996to2023.json",
-	T: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_T_splitadj_1996to2023.json",
-	WFC: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_WFC_splitadj_1996to2023.json",
-	XOM: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_XOM_splitadj_1996to2023.json",
-};
+const BLOB_URLS: Record<StockCode, string> = {};
 
 // Regular price data URLs from blob storage
 const REGULAR_PRICE_URLS: Record<StockCode, string> = {
