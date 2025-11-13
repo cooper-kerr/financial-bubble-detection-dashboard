@@ -87,7 +87,7 @@ jobs:
       - name: Update Yahoo Finance BLOB URLs in dataLoader.ts
         run: |
           export PATH="$HOME/.bun/bin:$PATH"
-          bun run scripts/update_blob_urls.ts
+          bun run scripts/update-blob-urls.ts
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
