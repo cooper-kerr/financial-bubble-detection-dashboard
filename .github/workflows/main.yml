@@ -122,7 +122,7 @@ jobs:
 
       - name: Update Blob URLs in dataLoader.ts
         run: |
-          node scripts/update-blob-urls.js
+          node scripts/update-blob-urls.ts
           echo "✅ Updated Blob URLs in dataLoader.ts"
 
       - name: Commit Updated dataLoader.ts
