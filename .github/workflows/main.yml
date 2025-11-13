@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pandas numpy yfinance scipy fredapi matplotlib
@@ -41,7 +41,7 @@ jobs:
             git push origin master
             echo "✅ CSV updates committed and pushed."
           else
-            echo "⚠️ No changes detected — skipping commit."
+            echo "⚠️ No CSV changes detected — skipping commit."
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -84,10 +84,10 @@ jobs:
           curl -fsSL https://bun.sh/install | bash
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
-      - name: Update BLOB URLs in dataLoader.ts
+      - name: Update Yahoo Finance BLOB URLs in dataLoader.ts
         run: |
           export PATH="$HOME/.bun/bin:$PATH"
-          bun run scripts/update-blob-urls.ts
+          bun run scripts/update_to_blob.ts
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -98,7 +98,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if [[ -n "$(git status --porcelain src/utils/dataLoader.ts)" ]]; then
             git add src/utils/dataLoader.ts blob_mapping.json
-            git commit -m "Automated BLOB URL update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git commit -m "Automated Yahoo Finance BLOB URL update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push origin master
             echo "✅ Updated BLOB URLs committed and pushed."
           else
