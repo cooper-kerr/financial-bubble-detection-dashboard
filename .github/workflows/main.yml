@@ -122,8 +122,8 @@ jobs:
 
       - name: Update Blob URLs in dataLoader.ts
         run: |
-          node scripts/update-blob-urls.ts
-          echo "✅ Updated Blob URLs in dataLoader.ts"
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run scripts/update-blob-urls.ts
 
       - name: Commit Updated dataLoader.ts
         run: |
