@@ -2,7 +2,7 @@ name: Daily Yahoo Finance Bubble Update
 
 on:
   schedule:
-    - cron: '59 20 * * *'  # Runs once daily at 20:59 UTC
+    - cron: '59 20 * * *'
   workflow_dispatch:
 
 jobs:
@@ -35,14 +35,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain data/csv)" ]]; then
-            git add data/csv
-            git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push origin master
-            echo "✅ CSV updates committed and pushed."
-          else
-            echo "⚠️ No CSV changes detected — skipping commit."
-          fi
+          git add data/csv
+          git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" || echo "No CSV changes to commit"
+          git push origin master || echo "No CSV changes to push"
 
   generate-mat-json:
     name: Generate JSON, Upload to Blob & Update URLs
@@ -65,19 +60,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy scipy matplotlib fredapi
 
-      - name: Run MAT generator
-        run: python scripts/sbub_run.py
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-
-      - name: Convert MAT into JSON files
+      - name: Run MAT generator & convert to JSON
         run: |
           mkdir -p public/data
+          python scripts/sbub_run.py
           python scripts/bubble_estimator.py
-          cp -R data/json/*.json public/data/ 2>/dev/null || true
-          cp -R output/*.json public/data/ 2>/dev/null || true
-          cp -R scripts/json/*.json public/data/ 2>/dev/null || true
-          echo "📦 Moved new JSONs into public/data"
+          echo "📦 JSON files generated in public/data"
+
+      - name: Commit updated JSONs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/*.json
+          git commit -m "Automated JSON update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" || echo "No JSON changes to commit"
+          git push origin master || echo "No JSON changes to push"
 
       - name: Install Bun
         run: |
@@ -96,14 +92,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain blob_mapping.json src/utils/dataLoader.ts)" ]]; then
-            git add blob_mapping.json src/utils/dataLoader.ts
-            git commit -m "Automated BLOB URL update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push origin master
-            echo "✅ Blob URLs updated & committed."
-          else
-            echo "⚠️ No BLOB URL changes detected — skipping commit."
-          fi
+          git add blob_mapping.json src/utils/dataLoader.ts
+          git commit -m "Automated BLOB URL update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" || echo "No BLOB changes to commit"
+          git push origin master || echo "No BLOB changes to push"
 
       - name: Trigger Vercel Redeploy
         run: |
