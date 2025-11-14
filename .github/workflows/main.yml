@@ -74,7 +74,11 @@ jobs:
           mkdir -p public/data
           python scripts/bubble_estimator.py
           echo "📦 JSON files created in public/data"
-
+      - name: Upload JSON files as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bubble-json-files
+          path: public/data/*.json
       - name: Install Bun
         run: |
           curl -fsSL https://bun.sh/install | bash
