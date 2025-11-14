@@ -2,7 +2,7 @@ name: Daily Yahoo Finance Bubble Update
 
 on:
   schedule:
-    - cron: '59 20 * * *'  # 20:59 UTC daily
+    - cron: '59 20 * * *'  # Runs once daily at 20:59 UTC
   workflow_dispatch:
 
 jobs:
@@ -43,11 +43,10 @@ jobs:
           else
             echo "⚠️ No CSV changes detected — skipping commit."
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
   generate-mat-json:
-    name: Generate MAT & Upload JSON Files
+    name: Generate JSON, Upload to Blob & Update URLs
     runs-on: ubuntu-latest
     needs: update-csvs
     permissions:
@@ -72,19 +71,28 @@ jobs:
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
-      - name: Convert MAT to JSON
+      - name: Convert MAT into JSON files
         run: |
           mkdir -p public/data
           python scripts/bubble_estimator.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
+      - name: Move ALL generated JSON → public/data
+        run: |
+          mkdir -p public/data
+          # Add as many locations as needed where your code generates JSONs
+          cp -R data/json/*.json public/data/ 2>/dev/null || true
+          cp -R output/*.json public/data/ 2>/dev/null || true
+          cp -R scripts/json/*.json public/data/ 2>/dev/null || true
+          echo "📦 Moved new JSONs into public/data"
+
       - name: Install Bun
         run: |
           curl -fsSL https://bun.sh/install | bash
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
-      - name: Update Yahoo Finance BLOB URLs in dataLoader.ts
+      - name: Upload new JSONs to Vercel Blob & update mapping
         run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun run scripts/update-blob-urls.ts
@@ -92,15 +100,16 @@ jobs:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit updated BLOB URLs
+      - name: Commit updated BLOB mappings + dataLoader.ts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain src/utils/dataLoader.ts)" ]]; then
-            git add src/utils/dataLoader.ts blob_mapping.json
-            git commit -m "Automated Yahoo Finance BLOB URL update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          if [[ -n "$(git status --porcelain blob_mapping.json src/utils/dataLoader.ts)" ]]; then
+            git add blob_mapping.json src/utils/dataLoader.ts
+            git commit -m "Automated BLOB URL update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push origin master
-            echo "✅ Updated BLOB URLs committed and pushed."
+            echo "✅ Blob URLs updated & committed."
           else
             echo "⚠️ No BLOB URL changes detected — skipping commit."
           fi
