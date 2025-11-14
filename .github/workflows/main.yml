@@ -42,7 +42,7 @@ jobs:
             echo "✅ CSV updates committed and force-pushed."
           else
             echo "⚠️ No CSV changes detected — skipping commit."
-
+          fi
   generate-mat-json:
     name: Generate JSON, Upload to Blob & Update URLs
     runs-on: ubuntu-latest
