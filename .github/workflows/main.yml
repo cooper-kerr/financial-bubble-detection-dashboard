@@ -99,7 +99,7 @@ jobs:
             echo "✅ Blob URLs and JSON updates committed & force-pushed."
           else
             echo "⚠️ No changes detected — skipping commit."
-
+          fi
       - name: Trigger Vercel Redeploy
         run: |
           curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_<YOUR_PROJECT_ID>" \
