@@ -42,11 +42,9 @@ jobs:
             echo "✅ CSV updates committed and pushed."
           else
             echo "⚠️ No CSV changes detected — skipping commit."
-          fi
 
-
-  generate-mat-json:
-    name: Generate JSON, Upload to Blob & Update URLs
+  generate-json:
+    name: Generate JSON & Deploy
     runs-on: ubuntu-latest
     needs: update-csvs
     permissions:
@@ -75,46 +73,23 @@ jobs:
         run: |
           mkdir -p public/data
           python scripts/bubble_estimator.py
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
-      - name: Move ALL generated JSON → public/data
+      - name: Move all generated JSON to public/data
         run: |
           mkdir -p public/data
-          # Add as many locations as needed where your code generates JSONs
           cp -R data/json/*.json public/data/ 2>/dev/null || true
           cp -R output/*.json public/data/ 2>/dev/null || true
           cp -R scripts/json/*.json public/data/ 2>/dev/null || true
-          echo "📦 Moved new JSONs into public/data"
+          echo "📦 JSON files moved to public/data"
 
-      - name: Install Bun
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          echo "$HOME/.bun/bin" >> $GITHUB_PATH
-
-      - name: Upload new JSONs to Vercel Blob & update mapping
-        run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bun run scripts/update-blob-urls.ts
-        env:
-          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Commit updated BLOB mappings + dataLoader.ts
+      - name: Commit updated JSON
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          if [[ -n "$(git status --porcelain blob_mapping.json src/utils/dataLoader.ts)" ]]; then
-            git add blob_mapping.json src/utils/dataLoader.ts
-            git commit -m "Automated BLOB URL update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          if [[ -n "$(git status --porcelain public/data)" ]]; then
+            git add public/data
+            git commit -m "Automated JSON update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push origin master
-            echo "✅ Blob URLs updated & committed."
+            echo "✅ JSON updates committed and pushed."
           else
-            echo "⚠️ No BLOB URL changes detected — skipping commit."
-          fi
-
-      - name: Trigger Vercel Redeploy
-        run: |
-          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_<YOUR_PROJECT_ID>" \
-          -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}"
+            echo "⚠️ No JSON changes detected — skipping commit"
