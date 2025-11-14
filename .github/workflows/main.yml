@@ -36,7 +36,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if [[ -n "$(git status --porcelain data/csv)" ]]; then
-            git add data/csv
+            git add data/csv/fail
             git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push origin master --force
             echo "✅ CSV updates committed and force-pushed."
@@ -110,32 +110,3 @@ jobs:
         run: |
           curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_<YOUR_PROJECT_ID>" \
           -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}"
-
-  apply-json-artifacts:
-    name: Apply JSON Artifacts to public/data
-    runs-on: ubuntu-latest
-    needs: generate-mat-json
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download JSON artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: bubble-json-files
-          path: public/data
-
-      - name: Commit JSON updates from artifact
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/data/*.json
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git commit -m "Update JSON files from artifact: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push origin master --force
-            echo "✅ JSON files committed & force-pushed."
-          else
-            echo "⚠️ No JSON changes detected — skipping commit."
