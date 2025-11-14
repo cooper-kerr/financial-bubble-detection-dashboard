@@ -42,7 +42,6 @@ jobs:
             echo "✅ CSV updates committed and force-pushed."
           else
             echo "⚠️ No CSV changes detected — skipping commit."
-          fi
 
   generate-mat-json:
     name: Generate JSON, Upload to Blob & Update URLs
@@ -74,10 +73,17 @@ jobs:
         run: |
           mkdir -p public/data
           python scripts/bubble_estimator.py
-          cp -R data/json/*.json public/data/ 2>/dev/null || true
-          cp -R output/*.json public/data/ 2>/dev/null || true
-          cp -R scripts/json/*.json public/data/ 2>/dev/null || true
-          echo "📦 Moved new JSONs into public/data"
+
+          # Copy all JSONs from multiple output folders to public/data
+          for src in data/json output scripts/json; do
+            [ -d "$src" ] || continue
+            for file in "$src"/*.json; do
+              [ -f "$file" ] || continue
+              cp "$file" public/data/
+            done
+          done
+
+          echo "📦 All new JSONs copied to public/data"
 
       - name: Install Bun
         run: |
@@ -92,18 +98,18 @@ jobs:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit updated BLOB mappings + dataLoader.ts
+      - name: Commit updated JSONs + BLOB mappings + dataLoader.ts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain blob_mapping.json src/utils/dataLoader.ts)" ]]; then
-            git add blob_mapping.json src/utils/dataLoader.ts public/data/*.json
+
+          if [[ -n "$(git status --porcelain public/data blob_mapping.json src/utils/dataLoader.ts)" ]]; then
+            git add public/data/*.json blob_mapping.json src/utils/dataLoader.ts
             git commit -m "Automated JSON & BLOB update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push origin master --force
-            echo "✅ Blob URLs and JSON updates committed & force-pushed."
+            echo "✅ JSONs and Blob URLs committed & force-pushed."
           else
             echo "⚠️ No changes detected — skipping commit."
-          fi
 
       - name: Trigger Vercel Redeploy
         run: |
