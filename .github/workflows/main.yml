@@ -36,7 +36,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if [[ -n "$(git status --porcelain data/csv)" ]]; then
-            git add data/csv/fail
+            git add data/csv
             git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push origin master --force
             echo "✅ CSV updates committed and force-pushed."
