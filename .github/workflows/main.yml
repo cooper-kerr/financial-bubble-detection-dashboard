@@ -1,142 +1,112 @@
 name: Daily Yahoo Finance Bubble Update
 
-# Prevent overlapping runs from stomping each other
-concurrency:
-  group: daily-yf-bubble
-  cancel-in-progress: false
-
 on:
   schedule:
-    # changed from :59 to :43 to avoid peak collisions — GitHub cron uses UTC
-    - cron: '43 20 * * *'
+    - cron: '59 20 * * *'
   workflow_dispatch:
 
-env:
-  # directories we care about committing
-  CSV_DIR: data/csv
-  JSON_DIR: public/data
-  MAPPING_FILE: public/data/mapping.json
-
 jobs:
-  update-and-deploy:
-    name: Scrape → generate → upload → commit → redeploy
+  update-csvs:
+    name: Scrape & Commit CSV Updates
     runs-on: ubuntu-latest
     permissions:
-      contents: write    # needed for pushing commits
-      id-token: write    # optional if you use OIDC for other services
+      contents: write
 
     steps:
-      - name: Checkout repository (full history for pushes)
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
 
-      - name: Set up Python 3.11 with pip cache
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install Python dependencies
         run: |
-          set -eo pipefail
           python -m pip install --upgrade pip
           pip install pandas numpy yfinance scipy fredapi matplotlib
 
       - name: Run CSV scraper
+        run: python scripts/YF-Data-Scraper.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+      - name: Commit CSV updates
         run: |
-          set -eo pipefail
-          python scripts/YF-Data-Scraper.py
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n "$(git status --porcelain data/csv)" ]]; then
+            git add data/csv
+            git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push origin master --force
+            echo "✅ CSV updates committed and force-pushed."
+          else
+            echo "⚠️ No CSV changes detected — skipping commit."
+          fi
+  generate-mat-json:
+    name: Generate JSON, Upload to Blob & Update URLs
+    runs-on: ubuntu-latest
+    needs: update-csvs
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scipy matplotlib fredapi
 
       - name: Run MAT generator
+        run: python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-        run: |
-          set -eo pipefail
-          python scripts/sbub_run.py
 
       - name: Convert MAT into JSON files
         run: |
-          set -eo pipefail
-          mkdir -p $JSON_DIR
+          mkdir -p public/data
           python scripts/bubble_estimator.py
-          echo "JSON produced in $JSON_DIR"
+          echo "📦 JSON files created in public/data"
 
-      - name: Install Bun (official setup action)
-        uses: oven-sh/setup-bun@v1
+      - name: Upload JSON files as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bubble-json-files
+          path: public/data/*.json
+
+      - name: Install Bun
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       - name: Upload new JSONs to Vercel Blob & update mapping
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run scripts/update-blob-urls.ts
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit JSON updates from artifact
         run: |
-          set -eo pipefail
-          # ensure node/bun deps and PATH are available via the setup action
-          bun run scripts/update-blob-urls.ts
-
-      - name: Show changed files (debug)
-        run: |
-          echo "---- git status ----"
-          git status --porcelain
-          echo "---- git diff (name-only) ----"
-          git --no-pager diff --name-only
-
-      - name: Commit only CSV, JSON and mapping changes (if any) & push with retries
-        env:
-          GIT_AUTHOR_NAME: "github-actions[bot]"
-          GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
-          PUSH_RETRY_MAX: 5
-        run: |
-          set -eo pipefail
-          git config user.name "$GIT_AUTHOR_NAME"
-          git config user.email "$GIT_AUTHOR_EMAIL"
-
-          # Add the exact things we want to track (avoid committing __pycache__ etc.)
-          git add -A $CSV_DIR || true
-          git add -A $JSON_DIR || true
-          # if your blob script updates another file (mapping), make sure it's included
-          git add -A $MAPPING_FILE || true
-
-          # If there are no staged changes, exit cleanly
-          if git diff --cached --quiet; then
-            echo "⚠️ No CSV/JSON/mapping changes detected — nothing to commit."
-            exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/*.json || true
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git commit -m "Update JSON files from artifact: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push origin master --force
+            echo "✅ JSON files committed & force-pushed."
+          else
+            echo "⚠️ No JSON changes detected — skipping commit."
           fi
-
-          # Commit with deterministic message
-          COMMIT_MSG="Automated update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          git commit -m "$COMMIT_MSG"
-
-          # push retry with exponential backoff, non-force
-          for i in $(seq 1 $PUSH_RETRY_MAX); do
-            if git push origin HEAD:${{ github.ref_name }}; then
-              echo "✅ Push succeeded on attempt $i"
-              break
-            else
-              echo "Push attempt $i failed — retrying..."
-              sleep $((2 ** i))
-            fi
-            if [ "$i" -eq "$PUSH_RETRY_MAX" ]; then
-              echo "❌ All push attempts failed"
-              exit 1
-            fi
-          done
-
       - name: Trigger Vercel Redeploy
-        if: success()
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          set -eo pipefail
-          # Replace PROJECT_ID (or team) below with your actual values
-          # Example endpoint for a project deploy via integration:
-          # https://api.vercel.com/v1/integrations/deploy/prj_XXXXXXXX
-          VERCEL_PROJECT_DEPLOY_URL="https://api.vercel.com/v1/integrations/deploy/prj_<YOUR_PROJECT_ID>?force=true"
-          curl -X POST "$VERCEL_PROJECT_DEPLOY_URL" \
-            -H "Authorization: Bearer $VERCEL_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            --fail --show-error --silent
+          curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_<YOUR_PROJECT_ID>" \
+          -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}"
