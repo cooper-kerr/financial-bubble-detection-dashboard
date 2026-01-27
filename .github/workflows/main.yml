@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -35,14 +37,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ -n "$(git status --porcelain public/data)" ]]; then
+          if [[ -n "$(git status --porcelain data/csv)" ]]; then
             git add data/csv
             git commit -m "Automated CSV update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push origin master
-            echo "✅ CSV updates committed and if n-pushed."
+            git push origin master --force
+            echo "✅ CSV updates committed and force-pushed."
           else
             echo "⚠️ No CSV changes detected — skipping commit."
           fi
+
   generate-mat-json:
     name: Generate JSON, Upload to Blob & Update URLs
     runs-on: ubuntu-latest
@@ -53,6 +56,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Pull full history so CSV changes are included
+
+      - name: Pull latest CSV changes from master
+        run: git pull origin master
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -99,13 +107,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add public/data/*.json || true
+          git pull origin master  # Ensure you’re up-to-date before committing
           if [[ -n "$(git status --porcelain)" ]]; then
             git commit -m "Update JSON files from artifact: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push origin master
+            git push origin master --force
             echo "✅ JSON files committed & force-pushed."
           else
             echo "⚠️ No JSON changes detected — skipping commit."
           fi
+
       - name: Trigger Vercel Redeploy
         run: |
           curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_<YOUR_PROJECT_ID>" \
