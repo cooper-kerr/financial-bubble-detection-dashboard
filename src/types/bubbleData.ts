@@ -72,7 +72,7 @@ export interface PriceDifferenceDataPoint {
 }
 
 export const STOCK_LIST = [
-	"SPX",
+	"^SPX",
 	"AAPL",
 	"BAC",
 	"C",
