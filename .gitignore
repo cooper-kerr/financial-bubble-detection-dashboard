@@ -7,3 +7,10 @@ count.txt
 .env
 .nitro
 .tanstack
+
+__pycache__/
+data/img/
+data/mat/
+*.mat
+*.npy
+*.log
