@@ -85,7 +85,7 @@ export const STOCK_LIST = [
 	"WFC",
 	"JPM",
 	"AMD",
-	"TWTR",
+	"META",
 	"F",
 	"TSLA",
 	"GOOG",
