@@ -60,7 +60,7 @@ const REGULAR_PRICE_URLS: Record<StockCode, string> = {
 	MSFT: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/MSFT_data.json",
 	MS: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/MS_data.json",
 	NVDA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/NVDA_data.json",
-	^SPX: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/SPX_data.json",
+	"^SPX": "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/SPX_data.json",
 	TSLA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/TSLA_data.json",
 	TWTR: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/TWTR_data.json",
 	T: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/T_data.json",
