@@ -7,15 +7,11 @@ from datetime import datetime, timedelta
 from fredapi import Fred
 from scipy.stats import norm 
 import pytz
+import type {
+	StockCode,
+} from "../types/bubbleData";
 
 csv_dir = "data/csv"
-
-# Automatically detect tickers from CSV filenames, ignore _count files
-tickers = [
-    f.replace("optout_", "").replace(".csv", "")
-    for f in os.listdir(csv_dir)
-    if f.startswith("optout_") and not f.endswith("_count.csv")
-]
 
 # FRED API key from environment variable
 api_key = os.getenv("FRED_API_KEY")
@@ -23,7 +19,7 @@ if not api_key:
     raise ValueError("FRED_API_KEY environment variable not set")
 fred = Fred(api_key=api_key)
 
-for ticker_symbol in tickers:
+for ticker_symbol in Stockcode:
     
     print(f"Running scraper for {ticker_symbol}...")
 
