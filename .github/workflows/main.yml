@@ -86,7 +86,9 @@ jobs:
       - name: Upload JSON files to Vercel Blob & generate mapping
         run: |
           # Ensure mapping file exists
-          echo '{}' > blob_mapping.json
+          if [ ! -f blob_mapping.json ]; then
+            echo '{}' > blob_mapping.json
+          fi
       
           for file in public/data/*.json; do
             filename=$(basename "$file")
@@ -100,15 +102,21 @@ jobs:
             url=$(echo "$response" | jq -r '.url')
             echo "Uploaded $filename -> $url"
       
-            # If jq fails, create a fallback empty JSON
+            # Update mapping safely
             tmpfile=$(mktemp)
-            jq --arg key "$stock" --arg value "$url" '. + {($key): $value}' blob_mapping.json > "$tmpfile" || echo '{}' > "$tmpfile"
-            mv "$tmpfile" blob_mapping.json
+            jq --arg key "$stock" --arg value "$url" '. + {($key): $value}' blob_mapping.json > "$tmpfile" 2>/dev/null
+            if [ $? -ne 0 ]; then
+              echo "⚠️ Failed to update mapping for $stock, keeping existing value."
+              rm "$tmpfile"
+            else
+              mv "$tmpfile" blob_mapping.json
+            fi
           done
       
           mv blob_mapping.json public/blob_mapping.json
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+
   
       - name: Commit JSON files & blob mapping
         run: |
