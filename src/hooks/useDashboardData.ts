@@ -29,7 +29,7 @@ interface DashboardState {
 
 export function useDashboardData() {
 	const [state, setState] = useState<DashboardState>({
-		selectedStock: "SPX",
+		selectedStock: "^SPX",
 		dataSource: "WRDS",
 		startDate: null,
 		endDate: null,
