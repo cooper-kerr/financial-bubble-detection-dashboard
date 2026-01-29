@@ -13,6 +13,13 @@ import type {
 
 csv_dir = "data/csv"
 
+YAHOO_SYMBOL_MAP = {
+    "SPX": "^SPX",
+}
+
+def to_yahoo_symbol(symbol):
+    return YAHOO_SYMBOL_MAP.get(symbol, symbol)
+
 # FRED API key from environment variable
 api_key = os.getenv("FRED_API_KEY")
 if not api_key:
@@ -20,7 +27,8 @@ if not api_key:
 fred = Fred(api_key=api_key)
 
 for ticker_symbol in Stockcode:
-    
+	yahoo_symbol = to_yahoo_symbol(ticker_symbol)
+	
     print(f"Running scraper for {ticker_symbol}...")
 
     filesource = f"optout_{ticker_symbol}"  # for CSV filenames
@@ -28,7 +36,7 @@ for ticker_symbol in Stockcode:
     os.makedirs(save_folder, exist_ok=True)
 
     
-    ticker = yf.Ticker(ticker_symbol)
+    ticker = yf.Ticker(yahoo_symbol)
     eastern = pytz.timezone("US/Eastern")
     start_date = "1996-01-01"
     end_date = (datetime.now(eastern) + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -49,7 +57,7 @@ for ticker_symbol in Stockcode:
     df['tr'] = df['tr']/100
     #--------------Options Data------------
     
-    ticker = yf.Ticker(ticker_symbol)
+    ticker = yf.Ticker(yahoo_symbol)
     expirations = ticker.options
     today = datetime.now()
     
