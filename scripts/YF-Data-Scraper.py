@@ -57,7 +57,7 @@ for ticker_symbol in Stockcode:
 	
 	print(f"Running scraper for {ticker_symbol}...")
 
-    filesource = f"optout_{ticker_symbol}"  # for CSV filenames
+	filesource = f"optout_{ticker_symbol}"  # for CSV filenames
     save_folder = csv_dir
     os.makedirs(save_folder, exist_ok=True)
 
