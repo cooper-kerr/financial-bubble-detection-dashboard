@@ -8,6 +8,23 @@ import type {
 	StockCode,
 } from "../types/bubbleData";
 
+import blobMappingJson from "../../public/blob_mapping.json";
+
+export function updateBlobUrlsFromMapping(): void {
+  Object.entries(blobMappingJson).forEach(([stock, url]) => {
+    if (BLOB_URLS.hasOwnProperty(stock as StockCode)) {
+      BLOB_URLS[stock as StockCode] = url as string;
+    } else if (REGULAR_PRICE_URLS.hasOwnProperty(stock as StockCode)) {
+      REGULAR_PRICE_URLS[stock as StockCode] = url as string;
+    } else {
+      console.warn(`⚠️ Skipped unknown stock code in mapping: ${stock}`);
+    }
+  });
+
+  console.log("✅ Blob URLs updated from blob_mapping.json");
+}
+
+
 const CURRENT_YEAR = new Date().getFullYear();
 
 export const YAHOO_BUBBLE_URLS: Record<StockCode, string> = {
