@@ -29,7 +29,7 @@ jobs:
           pip install pandas numpy yfinance scipy fredapi matplotlib
 
       - name: Run CSV scraper
-        run: python scripts/YF-Data-Scraper.py
+        run: python scripts/yf_data_scraper.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
