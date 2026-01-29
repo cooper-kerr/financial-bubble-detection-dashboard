@@ -22,7 +22,7 @@ Stockcode = [
 	"WFC",
 	"JPM",
 	"AMD",
-	"TWTR",
+	"META",
 	"F",
 	"TSLA",
 	"GOOG",
