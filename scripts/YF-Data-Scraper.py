@@ -9,7 +9,7 @@ from scipy.stats import norm
 import pytz
 
 STOCK_LIST = [
-	"^SPX",
+	"SPX",
 	"AAPL",
 	"BAC",
 	"C",
