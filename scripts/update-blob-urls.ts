@@ -1,6 +1,6 @@
-import { list } from "@vercel/blob";
+import { list, upload } from "@vercel/blob";
 import { config } from "dotenv";
-import { writeFileSync, readFileSync } from "fs";
+import { writeFileSync, readFileSync, readdirSync } from "fs";
 import { join } from "path";
 
 config({ path: ".env.local" });
@@ -14,9 +14,27 @@ if (!BLOB_READ_WRITE_TOKEN) {
 
 async function updateBlobUrls() {
   try {
-    const { blobs } = await list();
+    const DATA_DIR = join(process.cwd(), "public", "data");
+    const files = readdirSync(DATA_DIR).filter(f => f.endsWith(".json"));
 
+    // 1️⃣ Upload all JSON files
+    for (const fileName of files) {
+      const filePath = join(DATA_DIR, fileName);
+      const fileData = readFileSync(filePath);
+
+      console.log(`⬆️ Uploading ${fileName}...`);
+      await upload({
+        token: BLOB_READ_WRITE_TOKEN,
+        data: fileData,
+        pathname: fileName, // URL suffix
+      });
+      console.log(`✅ Uploaded ${fileName}`);
+    }
+
+    // 2️⃣ List blobs
+    const { blobs } = await list({ token: BLOB_READ_WRITE_TOKEN });
     const urlMapping: Record<string, string> = {};
+
     blobs.forEach(blob => {
       const match = blob.pathname.match(/([A-Z]+)_data\.json$/);
       if (match) {
@@ -26,12 +44,12 @@ async function updateBlobUrls() {
       }
     });
 
-    // Save mapping
+    // 3️⃣ Save mapping
     const mappingPath = join(process.cwd(), "blob_mapping.json");
     writeFileSync(mappingPath, JSON.stringify(urlMapping, null, 2));
     console.log(`💾 Saved blob_mapping.json`);
 
-    // Update dataLoader.ts
+    // 4️⃣ Update dataLoader.ts
     const dataLoaderPath = join(process.cwd(), "src", "utils", "dataLoader.ts");
     const content = readFileSync(dataLoaderPath, "utf-8");
 
@@ -39,14 +57,15 @@ async function updateBlobUrls() {
     const newFunction = `
 export function updateYahooBlobUrls(urlMapping: Record<string, string>): void {
   Object.entries(urlMapping).forEach(([stock, url]) => {
-    if (YAHOO_BLOB_URLS.hasOwnProperty(stock)) {
-      YAHOO_BLOB_URLS[stock as StockCode] = url;
+    if (YAHOO_BUBBLE_URLS.hasOwnProperty(stock)) {
+      YAHOO_BUBBLE_URLS[stock as StockCode] = url;
     } else {
       console.warn(\`⚠️ Skipped unknown stock code in mapping: \${stock}\`);
     }
   });
-  console.log("✅ YAHOO_BLOB_URLS updated successfully");
+  console.log("✅ YAHOO_BUBBLE_URLS updated successfully");
 }`;
+
     const updatedContent = content.replace(regex, newFunction);
     writeFileSync(dataLoaderPath, updatedContent, "utf-8");
 
