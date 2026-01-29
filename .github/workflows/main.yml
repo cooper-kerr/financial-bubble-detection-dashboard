@@ -99,7 +99,7 @@ jobs:
       
             response=$(curl -s -X POST "https://api.vercel.com/v1/blob" \
               -H "Authorization: Bearer ${{ secrets.BLOB_READ_WRITE_TOKEN }}" \
-              -F "projectId=<YOUR_PROJECT_ID>" \
+              -F "projectId=<prj_zhjeWU4QJIXsH5ytQkqAPn6DDS24>" \
               -F "file=@$file")
       
             url=$(echo "$response" | jq -r '.url')
