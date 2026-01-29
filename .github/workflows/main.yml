@@ -85,15 +85,32 @@ jobs:
   
       - name: Upload JSON files to Vercel Blob & generate mapping
         run: |
+          # Ensure the output folder exists
+          mkdir -p public/data
+      
+          # Log working directory
+          echo "Current working directory: $(pwd)"
+      
+          # List files in public/data for debugging
+          echo "Files in public/data before uploading:"
+          ls -la public/data || echo "⚠️ Folder is empty!"
+      
           # Ensure mapping file exists
           if [ ! -f blob_mapping.json ]; then
             echo '{}' > blob_mapping.json
           fi
       
+          # Loop over JSON files
           for file in public/data/*.json; do
+            if [ ! -f "$file" ]; then
+              echo "⚠️ No JSON files found matching $file"
+              continue
+            fi
+      
             filename=$(basename "$file")
             stock=${filename%%_*}
       
+            # Upload to Vercel Blob
             response=$(curl -s -X POST "https://api.vercel.com/v1/blob" \
               -H "Authorization: Bearer ${{ secrets.BLOB_READ_WRITE_TOKEN }}" \
               -F "projectId=<YOUR_PROJECT_ID>" \
@@ -113,9 +130,12 @@ jobs:
             fi
           done
       
+          # Save mapping to public folder
           mv blob_mapping.json public/blob_mapping.json
-        env:
-          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+      
+          # List final mapping
+          echo "Final blob_mapping.json contents:"
+          cat public/blob_mapping.json
 
   
       - name: Commit JSON files & blob mapping
