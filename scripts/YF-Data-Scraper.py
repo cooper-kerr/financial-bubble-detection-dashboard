@@ -8,7 +8,7 @@ from fredapi import Fred
 from scipy.stats import norm 
 import pytz
 
-STOCK_LIST = [
+Stockcode = [
 	"SPX",
 	"AAPL",
 	"BAC",
