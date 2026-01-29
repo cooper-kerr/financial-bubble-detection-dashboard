@@ -36,15 +36,15 @@ Three time horizon groups are analyzed:
 - **Tau Group 2** (τ ≈ 0.5): Medium-term bubble detection
 - **Tau Group 3** (τ ≈ 1.0): Long-term bubble detection
 
-### Data Sources
-## WRDS (1996-2023)
+## Data Sources
+### WRDS (1996-2023)
 - **Stock Price Data**: Split-adjusted historical prices 
 - **Options Data**: Put and call options with various expiration dates
 - **Time Series**: Daily bubble estimates with rolling window analysis
-## Yahoo Finance API (2026 - Present)
-- ** Stock Price Data: Uses Yahoo Finance API
-- ** Options Data: Uses Yahoo Finance API
-- ** Dashboard: Seperate section on dashboard to show most recent bubble estimates using data from Yahoo Finance
+### Yahoo Finance API (2026 - Present)
+- **Stock Price Data**: Uses Yahoo Finance API
+- **Options Data**: Uses Yahoo Finance API
+- **Dashboard**: Seperate section on dashboard to show most recent bubble estimates using data from Yahoo Finance
 
 
 
