@@ -85,24 +85,22 @@ jobs:
   
       - name: Upload JSON files to Vercel Blob & generate mapping
         run: |
-          echo "{}" > blob_mapping.json
+          tee blob_mapping.json <<< "{}"
           for file in public/data/*.json; do
             filename=$(basename "$file")
             stock=${filename%%_*}
-  
+      
             response=$(curl -s -X POST "https://api.vercel.com/v1/blob" \
               -H "Authorization: Bearer ${{ secrets.BLOB_READ_WRITE_TOKEN }}" \
               -F "projectId=<YOUR_PROJECT_ID>" \
               -F "file=@$file")
-  
+      
             url=$(echo $response | jq -r '.url')
             echo "Uploaded $filename -> $url"
-  
-            # Add to mapping JSON
+      
             jq --arg key "$stock" --arg value "$url" '. + {($key): $value}' blob_mapping.json > tmp.$$.json && mv tmp.$$.json blob_mapping.json
           done
-  
-          # Save mapping to public folder
+      
           mv blob_mapping.json public/blob_mapping.json
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
