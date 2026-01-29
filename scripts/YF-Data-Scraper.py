@@ -55,7 +55,7 @@ fred = Fred(api_key=api_key)
 for ticker_symbol in Stockcode:
 	yahoo_symbol = to_yahoo_symbol(ticker_symbol)
 	
-    print(f"Running scraper for {ticker_symbol}...")
+	print(f"Running scraper for {ticker_symbol}...")
 
     filesource = f"optout_{ticker_symbol}"  # for CSV filenames
     save_folder = csv_dir
