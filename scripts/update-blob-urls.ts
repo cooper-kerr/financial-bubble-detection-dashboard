@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { list } from "@vercel/blob";
 import { config } from "dotenv";
 import { writeFileSync, readFileSync } from "fs";
 import { join } from "path";
