@@ -137,11 +137,17 @@ financial-bubble-detection-dashboard/
 │   ├── upload-to-blob.ts        # Upload data to Vercel Blob Storage
 │   ├── get-blob-urls.ts         # Retrieve blob URLs
 │   ├── test-blob-fetch.ts       # Test blob connectivity
-│   └── update-blob-urls.ts      # Update URL mappings
+│   └── yf_data_scraper.py       # Scrape YF options data, and append local CSV's
+│   └── sbub_run.py              # Run .mat generation 
+│   └── bubble_estimator.py      # Create YF .json files
 ├── docs/                        # Documentation
 │   └── plotly-tooltip-customization-guide.md
 ├── public/                      # Static assets
+│   └── data/                    # Holds local Copies of YF .json files 
 │   └── *.png, *.ico, etc.       # Images and icons
+├── .github/workflows/
+│   └── main.yml                 # Workflow for updating YF points on Dashboard
+├── data/csv/                    # Holds local copies of YF csv options data
 ├── dist/                        # Production build output
 ├── package.json                 # Dependencies and scripts
 ├── vite.config.ts               # Vite configuration
