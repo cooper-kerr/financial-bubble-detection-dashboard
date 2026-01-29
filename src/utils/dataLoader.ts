@@ -91,6 +91,9 @@ export async function loadBubbleData(
 		}
 
 		const data: BubbleData = await response.json();
+		data.time_series_data.sort(
+		    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+		);
 		return data;
 	} catch (error) {
 		console.error(`Error loading data for ${stockCode} from ${dataSource}:`, error);
