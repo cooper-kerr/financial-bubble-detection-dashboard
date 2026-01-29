@@ -7,9 +7,35 @@ from datetime import datetime, timedelta
 from fredapi import Fred
 from scipy.stats import norm 
 import pytz
-import type {
-	StockCode,
-} from "../types/bubbleData";
+
+STOCK_LIST = [
+	"^SPX",
+	"AAPL",
+	"BAC",
+	"C",
+	"MSFT",
+	"FB",
+	"GE",
+	"INTC",
+	"CSCO",
+	"BABA",
+	"WFC",
+	"JPM",
+	"AMD",
+	"TWTR",
+	"F",
+	"TSLA",
+	"GOOG",
+	"T",
+	"XOM",
+	"AMZN",
+	"MS",
+	"NVDA",
+	"AIG",
+	"GM",
+	"DIS",
+	"BA",
+]
 
 csv_dir = "data/csv"
 
