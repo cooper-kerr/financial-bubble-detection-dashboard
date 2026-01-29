@@ -12,7 +12,7 @@ import blobMappingJson from "../../public/blob_mapping.json";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-// Default Vercel Blob Storage URLs
+// --- Default Vercel Blob Storage URLs ---
 let BLOB_URLS: Record<StockCode, string> = {
   AAPL: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AAPL_splitadj_1996to2023.json`,
   AIG: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AIG_splitadj_1996to2023.json`,
@@ -42,7 +42,7 @@ let BLOB_URLS: Record<StockCode, string> = {
   XOM: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_XOM_splitadj_1996to2023.json`,
 };
 
-// Regular price URLs
+// --- Regular price URLs ---
 let REGULAR_PRICE_URLS: Record<StockCode, string> = {
   AAPL: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/AAPL_data.json",
   AIG: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/AIG_data.json",
@@ -72,20 +72,18 @@ let REGULAR_PRICE_URLS: Record<StockCode, string> = {
   XOM: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/XOM_data.json",
 };
 
-/**
- * Update BLOB_URLS and REGULAR_PRICE_URLS from blob_mapping.json
- */
+// --- Update blob URLs from mapping ---
 export function updateBlobUrlsFromMapping(): void {
-  Object.entries(blobMappingJson).forEach(([stock, url]) => {
+  const mapping = blobMappingJson as Record<string, string>;
+  Object.entries(mapping).forEach(([stock, url]: [string, string]) => {
     if (BLOB_URLS.hasOwnProperty(stock as StockCode)) {
-      BLOB_URLS[stock as StockCode] = url as string;
+      BLOB_URLS[stock as StockCode] = url;
     } else if (REGULAR_PRICE_URLS.hasOwnProperty(stock as StockCode)) {
-      REGULAR_PRICE_URLS[stock as StockCode] = url as string;
+      REGULAR_PRICE_URLS[stock as StockCode] = url;
     } else {
       console.warn(`⚠️ Skipped unknown stock code in mapping: ${stock}`);
     }
   });
-
   console.log("✅ Blob URLs updated from blob_mapping.json");
 }
 
@@ -99,62 +97,13 @@ export async function loadBubbleData(
       dataSource === "WRDS"
         ? BLOB_URLS[stockCode]
         : `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_${stockCode}_splitadj_2025to${CURRENT_YEAR}.json`;
-
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to load data: ${res.statusText}`);
-    return await res.json();
+    return (await res.json()) as BubbleData;
   } catch (err) {
     console.error(err);
     throw err;
   }
-}
-
-// --- Transform bubble data for charts ---
-export function transformDataForChart(
-  bubbleData: BubbleData,
-  optionType: OptionType,
-  startDate?: Date,
-  endDate?: Date,
-): ChartDataPoint[] {
-  const filtered = bubbleData.time_series_data.filter((p) => {
-    const t = new Date(p.date).getTime();
-    if (startDate && t < startDate.getTime()) return false;
-    if (endDate && t > endDate.getTime()) return false;
-    return true;
-  });
-
-  return filtered.map((p) => ({
-    date: p.date,
-    stockPrice: p.stock_prices.adjusted,
-    tau1: p.bubble_estimates.daily_grouped[0][optionType],
-    tau2: p.bubble_estimates.daily_grouped[1][optionType],
-    tau3: p.bubble_estimates.daily_grouped[2][optionType],
-  }));
-}
-
-// --- Date range helper ---
-export function getDateRange(bubbleData: BubbleData): { min: Date; max: Date } {
-  const times = bubbleData.time_series_data.map((p) => new Date(p.date).getTime());
-  return { min: new Date(Math.min(...times)), max: new Date(Math.max(...times)) };
-}
-
-// --- Format tooltip data ---
-export function formatTooltipData(dataPoint: ChartDataPoint, tauGroupsInfo: { mean: number }[]) {
-  const date = new Date(dataPoint.date).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  return ["tau1", "tau2", "tau3"].reduce((acc, tau, i) => {
-    acc[tau] = {
-      name: `Tau Group ${i + 1} (${tauGroupsInfo[i]?.mean ?? [0.25, 0.5, 1][i]})`,
-      estimate: (dataPoint as any)[tau].mu.toFixed(3),
-      lowerBound: (dataPoint as any)[tau].lb.toFixed(3),
-      upperBound: (dataPoint as any)[tau].ub.toFixed(3),
-    };
-    return acc;
-  }, { date, stockPrice: dataPoint.stockPrice.toFixed(2) } as any);
 }
 
 // --- Load regular price data ---
@@ -164,9 +113,10 @@ export async function loadRegularPriceData(stockCode: StockCode): Promise<Regula
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to load regular price data: ${res.statusText}`);
 
-    const data = await res.json();
+    const data: any = await res.json();
+
     if (Array.isArray(data.daily_data)) {
-      return data.daily_data.map((p) => ({ date: p.date, price: p.raw_price }));
+      return data.daily_data.map((p: any) => ({ date: p.date, price: p.raw_price }));
     } else if (Array.isArray(data)) {
       return data.map((p: any) => ({ date: p.date, price: p.price ?? p.close ?? p.raw_price }));
     } else if (data.data && Array.isArray(data.data)) {
@@ -179,6 +129,62 @@ export async function loadRegularPriceData(stockCode: StockCode): Promise<Regula
   }
 }
 
+// --- Date range helper ---
+export function getDateRange(bubbleData: BubbleData): { min: Date; max: Date } {
+  const times = bubbleData.time_series_data.map(
+    (p: BubbleData["time_series_data"][number]) => new Date(p.date).getTime()
+  );
+  return { min: new Date(Math.min(...times)), max: new Date(Math.max(...times)) };
+}
+
+// --- Transform bubble data for charts ---
+export function transformDataForChart(
+  bubbleData: BubbleData,
+  optionType: OptionType,
+  startDate?: Date,
+  endDate?: Date,
+): ChartDataPoint[] {
+  type TimeSeriesEntry = BubbleData["time_series_data"][number];
+
+  const filtered = bubbleData.time_series_data.filter((p: TimeSeriesEntry) => {
+    const t = new Date(p.date).getTime();
+    if (startDate && t < startDate.getTime()) return false;
+    if (endDate && t > endDate.getTime()) return false;
+    return true;
+  });
+
+  return filtered.map((p: TimeSeriesEntry) => ({
+    date: p.date,
+    stockPrice: p.stock_prices.adjusted,
+    tau1: p.bubble_estimates.daily_grouped[0][optionType],
+    tau2: p.bubble_estimates.daily_grouped[1][optionType],
+    tau3: p.bubble_estimates.daily_grouped[2][optionType],
+  }));
+}
+
+// --- Format tooltip data ---
+export function formatTooltipData(
+  dataPoint: ChartDataPoint,
+  tauGroupsInfo: { mean: number }[]
+): Record<string, any> {
+  const date = new Date(dataPoint.date).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  return ["tau1", "tau2", "tau3"].reduce<Record<string, any>>((acc, tau, i) => {
+    const tauData = (dataPoint as any)[tau]; // could further type if ChartDataPoint has tau1/2/3 typed
+    acc[tau] = {
+      name: `Tau Group ${i + 1} (${tauGroupsInfo[i]?.mean ?? [0.25, 0.5, 1][i]})`,
+      estimate: tauData.mu.toFixed(3),
+      lowerBound: tauData.lb.toFixed(3),
+      upperBound: tauData.ub.toFixed(3),
+    };
+    return acc;
+  }, { date, stockPrice: dataPoint.stockPrice.toFixed(2) } as Record<string, any>);
+}
+
 // --- Calculate price differences ---
 export function calculatePriceDifferences(
   bubbleData: BubbleData,
@@ -187,10 +193,12 @@ export function calculatePriceDifferences(
   endDate?: Date,
 ): PriceDifferenceDataPoint[] {
   const regMap = new Map(
-    regularPriceData.map((p) => [p.date.split("T")[0], p.price]),
+    regularPriceData.map((p: RegularPriceData) => [p.date.split("T")[0], p.price])
   );
 
-  const filtered = bubbleData.time_series_data.filter((p) => {
+  type TimeSeriesEntry = BubbleData["time_series_data"][number];
+
+  const filtered = bubbleData.time_series_data.filter((p: TimeSeriesEntry) => {
     const t = new Date(p.date).getTime();
     if (startDate && t < startDate.getTime()) return false;
     if (endDate && t > endDate.getTime()) return false;
@@ -198,12 +206,14 @@ export function calculatePriceDifferences(
   });
 
   return filtered
-    .map((p) => {
+    .map((p: TimeSeriesEntry) => {
       const dateKey = p.date.split("T")[0];
       const regularPrice = regMap.get(dateKey);
       if (regularPrice === undefined) return null;
+
       const adjustedPrice = p.stock_prices.adjusted;
       const diff = adjustedPrice - regularPrice;
+
       return {
         date: p.date,
         adjustedPrice,
