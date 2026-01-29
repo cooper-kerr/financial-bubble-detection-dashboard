@@ -8,6 +8,37 @@ import type {
 	StockCode,
 } from "../types/bubbleData";
 
+const CURRENT_YEAR = new Date().getFullYear();
+
+export const YAHOO_BUBBLE_URLS: Record<StockCode, string> = {
+  AAPL: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AAPL_splitadj_2025to${CURRENT_YEAR}.json`,
+  AIG: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AIG_splitadj_2025to${CURRENT_YEAR}.json`,
+  AMD: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AMD_splitadj_2025to${CURRENT_YEAR}.json`,
+  AMZN: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AMZN_splitadj_2025to${CURRENT_YEAR}.json`,
+  BABA: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_BABA_splitadj_2025to${CURRENT_YEAR}.json`,
+  BAC: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_BAC_splitadj_2025to${CURRENT_YEAR}.json`,
+  BA: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_BA_splitadj_2025to${CURRENT_YEAR}.json`,
+  CSCO: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_CSCO_splitadj_2025to${CURRENT_YEAR}.json`,
+  C: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_C_splitadj_2025to${CURRENT_YEAR}.json`,
+  DIS: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_DIS_splitadj_2025to${CURRENT_YEAR}.json`,
+  FB: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_FB_splitadj_2025to${CURRENT_YEAR}.json`,
+  F: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_F_splitadj_2025to${CURRENT_YEAR}.json`,
+  GE: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_GE_splitadj_2025to${CURRENT_YEAR}.json`,
+  GM: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_GM_splitadj_2025to${CURRENT_YEAR}.json`,
+  GOOG: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_GOOG_splitadj_2025to${CURRENT_YEAR}.json`,
+  INTC: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_INTC_splitadj_2025to${CURRENT_YEAR}.json`,
+  JPM: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_JPM_splitadj_2025to${CURRENT_YEAR}.json`,
+  MSFT: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_MSFT_splitadj_2025to${CURRENT_YEAR}.json`,
+  MS: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_MS_splitadj_2025to${CURRENT_YEAR}.json`,
+  NVDA: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_NVDA_splitadj_2025to${CURRENT_YEAR}.json`,
+  "^SPX": `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_SPX_splitadj_2025to${CURRENT_YEAR}.json`,
+  TSLA: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_TSLA_splitadj_2025to${CURRENT_YEAR}.json`,
+  TWTR: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_TWTR_splitadj_2025to${CURRENT_YEAR}.json`,
+  T: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_T_splitadj_2025to${CURRENT_YEAR}.json`,
+  WFC: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_WFC_splitadj_2025to${CURRENT_YEAR}.json`,
+  XOM: `https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_XOM_splitadj_2025to${CURRENT_YEAR}.json`,
+};
+
 // Vercel Blob Storage URLs for each stock
 const BLOB_URLS: Record<StockCode, string> = {
 	AAPL: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AAPL_splitadj_1996to2023.json",
