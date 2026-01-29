@@ -70,7 +70,7 @@ export function useDashboardData() {
 				// For Yahoo Finance, default start date to Jan 26, 2026
 				let newStartDate = dateRange.min;
 				if (state.dataSource === "Yahoo Finance") {
-					newStartDate = new Date(2026, 1, 26); // Month is 0-indexed (1 = January)
+					newStartDate = new Date(2026, 0, 26); // Month is 0-indexed (0 = January)
 				}
 
 				// Handle regular price data result (optional, don't fail if not available)
