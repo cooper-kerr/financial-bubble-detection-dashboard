@@ -21,7 +21,7 @@ IMG_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Stock list
-stockcodelist = [ "^SPX", "AAPL", "BAC", "C", "MSFT", "META", "GE", "INTC", "CSCO", "BABA",
+stockcodelist = [ "SPX", "AAPL", "BAC", "C", "MSFT", "META", "GE", "INTC", "CSCO", "BABA",
                   "WFC", "JPM", "AMD", "F", "TSLA", "GOOG", "T", "XOM", "AMZN",
                   "MS", "NVDA", "AIG", "GM", "DIS", "BA"] 
 
