@@ -10,7 +10,7 @@ def main():
     # ──────────────── Ticker list ────────────────
     stockcodelist = ['AAPL', 'AIG', 'AMD', 'AMZN', 'BA', 'BABA', 'BAC', 'C', 'CSCO',
                      'DIS', 'F', 'GE', 'GM', 'GOOG', 'INTC', 'JPM', 'META', 'MS', 
-                     'MSFT', 'NVDA', 'T', 'TSLA', 'WFC', 'XOM', '^SPX']
+                     'MSFT', 'NVDA', 'T', 'TSLA', 'WFC', 'XOM', 'SPX']
     
     # ──────────────── Parameters ────────────────
     current_year = datetime.now().year
@@ -96,4 +96,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
