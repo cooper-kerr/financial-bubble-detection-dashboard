@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from fredapi import Fred
 from scipy.stats import norm 
 import pytz
+import time
 
 Stockcode = [
 	"SPX",
@@ -39,6 +40,7 @@ Stockcode = [
 
 csv_dir = "data/csv"
 
+#in Yahoo finance the options data for SPX is tied to ^SPX ticker so must remap after pulling
 YAHOO_SYMBOL_MAP = {
     "SPX": "^SPX",
 }
@@ -46,11 +48,26 @@ YAHOO_SYMBOL_MAP = {
 def to_yahoo_symbol(symbol):
     return YAHOO_SYMBOL_MAP.get(symbol, symbol)
 
-# FRED API key from environment variable
+# Wrap FRED API call in loop to ensure if one call fails it doesn't break the workflow
+MAX_RETRIES = 5
+RETRY_DELAY = 3  # seconds
+
 api_key = os.getenv("FRED_API_KEY")
 if not api_key:
     raise ValueError("FRED_API_KEY environment variable not set")
-fred = Fred(api_key=api_key)
+
+for attempt in range(1, MAX_RETRIES + 1):
+    try:
+        fred = Fred(api_key=api_key)
+        break
+
+    except Exception as e:
+        if attempt == MAX_RETRIES:
+            raise RuntimeError(f"Failed to initialize FRED after {MAX_RETRIES} attempts") from e
+
+        wait = RETRY_DELAY * attempt
+        print(f"Attempt {attempt} failed: {e}. Retrying in {wait}s...")
+        time.sleep(wait)
 
 for ticker_symbol in Stockcode:
 	yahoo_symbol = to_yahoo_symbol(ticker_symbol)
