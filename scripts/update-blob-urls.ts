@@ -1,4 +1,4 @@
-import { put, list } from "@vercel/blob";
+import { put } from "@vercel/blob";
 import { config } from "dotenv";
 import { writeFileSync, readFileSync, readdirSync } from "fs";
 import { join } from "path";
@@ -32,21 +32,21 @@ async function updateBlobUrls() {
       const localPath = join(JSON_OUTPUT_DIR, filename);
       const fileContent = readFileSync(localPath);
 
-      // Upload to Blob under the same filename, overwriting any previous version
+      // Upload to Blob under the same filename, overwriting any previous version.
+      // addRandomSuffix: false keeps URLs deterministic between daily runs.
       const blob = await put(filename, fileContent, {
         access: "public",
         token: BLOB_READ_WRITE_TOKEN,
-        addRandomSuffix: false,   // keep deterministic URLs so the mapping stays stable
+        addRandomSuffix: false,
         contentType: "application/json",
       });
 
       console.log(`⬆️  Uploaded ${filename} → ${blob.url}`);
 
       // Match filenames like: bubble_data_AAPL_splitadj_2025to2025.json
-      //                    or bubble_data_SPX_splitadj_2025to2025.json
       const match = filename.match(/^bubble_data_([^_]+(?:_[^_]+)*)_splitadj_/);
       if (match) {
-        const stock = match[1];   // e.g. "AAPL", "SPX", "BAC"
+        const stock = match[1];
         urlMapping[stock] = blob.url;
         console.log(`✅ Mapped ${stock} → ${blob.url}`);
       } else {
@@ -55,41 +55,31 @@ async function updateBlobUrls() {
     }
 
     if (Object.keys(urlMapping).length === 0) {
-      console.error("❌ No stock codes could be extracted from uploaded files — check filename format.");
+      console.error("❌ No stock codes could be extracted — check filename format.");
       process.exit(1);
     }
 
-    // ── Step 2: Save blob_mapping.json locally (for reference / debugging) ──
-    const mappingPath = join(process.cwd(), "blob_mapping.json");
-    writeFileSync(mappingPath, JSON.stringify(urlMapping, null, 2));
-    console.log(`💾 Saved blob_mapping.json with ${Object.keys(urlMapping).length} entries`);
+    // ── Step 2: Upload blob_mapping.json to Blob ──
+    // dataLoader.ts fetches this at runtime to get the current URLs.
+    // This replaces the old approach of modifying dataLoader.ts source and committing to git.
+    const mappingJson = JSON.stringify(urlMapping, null, 2);
 
-    // ── Step 3: Update dataLoader.ts with the new URL mapping function ──
-    const dataLoaderPath = join(process.cwd(), "src", "utils", "dataLoader.ts");
-    const content = readFileSync(dataLoaderPath, "utf-8");
+    const mappingBlob = await put("blob_mapping.json", mappingJson, {
+      access: "public",
+      token: BLOB_READ_WRITE_TOKEN,
+      addRandomSuffix: false,
+      contentType: "application/json",
+    });
 
-    const regex = /export function updateYahooBlobUrls[\s\S]*?console\.log\("✅ YAHOO_BLOB_URLS updated successfully"\);/;
+    console.log(`✅ Uploaded blob_mapping.json to Blob → ${mappingBlob.url}`);
 
-    const newFunction = `export function updateYahooBlobUrls(urlMapping: Record<string, string>): void {
-  Object.entries(urlMapping).forEach(([stock, url]) => {
-    if (YAHOO_BLOB_URLS.hasOwnProperty(stock)) {
-      YAHOO_BLOB_URLS[stock as StockCode] = url;
-    } else {
-      console.warn(\`⚠️ Skipped unknown stock code in mapping: \${stock}\`);
-    }
-  });
-  console.log("✅ YAHOO_BLOB_URLS updated successfully");
-}`;
+    // Also save locally for debugging reference (not committed to git)
+    const localMappingPath = join(process.cwd(), "blob_mapping.json");
+    writeFileSync(localMappingPath, mappingJson);
+    console.log(`💾 Saved blob_mapping.json locally for reference`);
 
-    if (!regex.test(content)) {
-      console.error("❌ Could not find updateYahooBlobUrls function in dataLoader.ts — regex did not match.");
-      console.error("   Check that the function signature and final console.log line haven't changed.");
-      process.exit(1);
-    }
-
-    const updatedContent = content.replace(regex, newFunction);
-    writeFileSync(dataLoaderPath, updatedContent, "utf-8");
-    console.log("✅ Updated dataLoader.ts with new blob URLs function");
+    console.log(`\n🎉 Done. ${Object.keys(urlMapping).length} stocks uploaded and mapped.`);
+    console.log(`   dataLoader.ts will fetch the mapping at runtime from:\n   ${mappingBlob.url}`);
 
   } catch (err) {
     console.error("❌ Failed to update blob URLs:", err);
