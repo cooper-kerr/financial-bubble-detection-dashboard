@@ -38,12 +38,6 @@ def download_csv_from_blob(blob_path: str, local_path: str) -> None:
 
 
 def upload_csv_to_blob(local_path: str, blob_path: str) -> None:
-    """
-    Upload a local CSV to Vercel Blob, overwriting the existing file.
-    Raises on any non-2xx response so the GitHub Action step fails visibly.
-    """
-    if not BLOB_TOKEN:
-        raise EnvironmentError("BLOB_READ_WRITE_TOKEN environment variable is not set.")
     url = f"https://blob.vercel-storage.com/{blob_path}"
     with open(local_path, "rb") as f:
         content = f.read()
@@ -51,6 +45,7 @@ def upload_csv_to_blob(local_path: str, blob_path: str) -> None:
         "Authorization": f"Bearer {BLOB_TOKEN}",
         "Content-Type": "text/csv",
         "x-content-type": "text/csv",
+        "x-add-random-suffix": "0",  # ← add this line
     }
     r = requests.put(url, headers=headers, data=content, timeout=60)
     if r.status_code in (200, 201):
