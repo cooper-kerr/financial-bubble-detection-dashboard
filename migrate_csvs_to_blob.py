@@ -1,7 +1,7 @@
 import os, requests
 from pathlib import Path
 
-BLOB_TOKEN = "your_BLOB_READ_WRITE_TOKEN_here"
+BLOB_TOKEN = vercel_blob_rw_fPoSL6nAfeqVTWPj_tgwb2QfGedhYdaTrTv3B0cwMhHUDNF
 BASE_URL = "https://blob.vercel-storage.com"
 
 for csv_file in Path("data/csv").glob("*.csv"):
