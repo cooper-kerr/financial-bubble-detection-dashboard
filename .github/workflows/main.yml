@@ -10,7 +10,7 @@ jobs:
     name: Scrape & Upload CSVs to Blob
     runs-on: ubuntu-latest
     permissions:
-      contents: read  # read-only — nothing is committed to git anymore
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,20 +31,16 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
-        # The scraper now handles its own Blob download → append → Blob upload
-        # internally. No git commit step needed.
 
   generate-mat-json:
     name: Generate JSON & Upload to Blob
     runs-on: ubuntu-latest
     needs: update-csvs
     permissions:
-      contents: read  # read-only — nothing is committed to git anymore
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # fetch-depth: 0 and git pull are no longer needed —
-        # CSVs are fetched from Blob, not from the repo.
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -56,18 +52,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy scipy matplotlib fredapi requests
 
-      - name: Download CSVs from Vercel Blob
-        # Pull all CSVs from Blob onto the runner so sbub_run.py and
-        # bubble_estimator.py can read them exactly as before.
-        run: python scripts/download_csvs_from_blob.py
-        env:
-          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
-
       - name: Run MAT generator
+        # sbub_run.py handles its own per-ticker CSV download from Blob internally
         run: python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
 
       - name: Convert MAT into JSON files
         run: |
@@ -92,11 +83,7 @@ jobs:
           bun run scripts/update-blob-urls.ts
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # JSONs are now only in Blob — no git commit step after this.
 
       - name: Trigger Vercel Redeploy
         run: |
           curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
-        # Set VERCEL_DEPLOY_HOOK_URL as a GitHub secret.
-        # Generate the hook at: Vercel Dashboard → Your Project → Settings → Git → Deploy Hooks
