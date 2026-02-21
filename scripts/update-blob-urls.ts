@@ -38,6 +38,7 @@ async function updateBlobUrls() {
         access: "public",
         token: BLOB_READ_WRITE_TOKEN,
         addRandomSuffix: false,
+        allowOverwrite: true,   // ← add this
         contentType: "application/json",
       });
 
