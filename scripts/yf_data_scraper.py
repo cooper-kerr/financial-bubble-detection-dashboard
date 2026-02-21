@@ -64,7 +64,6 @@ Stockcode = [
     "BAC",
     "C",
     "MSFT",
-    "FB",
     "GE",
     "INTC",
     "CSCO",
