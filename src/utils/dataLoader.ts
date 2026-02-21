@@ -78,7 +78,7 @@ const REGULAR_PRICE_URLS: Record<StockCode, string> = {
 // Cached in memory for the lifetime of the page so we only fetch it once.
 // ─────────────────────────────────────────────────────────────────────────────
 const BLOB_MAPPING_URL =
-	"https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/blob_mapping.json";
+	"https://fposl6nafeqvtwpj.public.blob.vercel-storage.com/blob_mapping.json";
 
 let yahooUrlCache: Record<string, string> | null = null;
 
