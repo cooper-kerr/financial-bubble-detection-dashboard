@@ -37,23 +37,39 @@ def download_csv_from_blob(blob_path: str, local_path: str) -> None:
         print(f"⚠️  Could not download {blob_path}: {e} — will create fresh.")
 
 
-def upload_csv_to_blob(local_path: str, blob_path: str) -> None:
-    url = f"https://blob.vercel-storage.com/{blob_path}"
+def upload_csv_to_blob(local_path: str, blob_path: str, max_retries: int = 3) -> None:
+    """Upload a local CSV to Vercel Blob, overwriting the existing file."""
+    if not BLOB_TOKEN:
+        raise EnvironmentError("BLOB_READ_WRITE_TOKEN environment variable is not set.")
+    url = f"https://blob.vercel-storage.com/{blob_path}?allowOverwrite=1"
     with open(local_path, "rb") as f:
         content = f.read()
     headers = {
         "Authorization": f"Bearer {BLOB_TOKEN}",
         "Content-Type": "text/csv",
         "x-content-type": "text/csv",
-        "x-add-random-suffix": "0",  # ← add this line
+        "x-add-random-suffix": "0",
     }
-    r = requests.put(url, headers=headers, data=content, timeout=60)
-    if r.status_code in (200, 201):
-        print(f"⬆️  Uploaded {local_path} → blob:{blob_path}")
-    else:
-        raise RuntimeError(
-            f"Blob upload failed for {blob_path}: HTTP {r.status_code} — {r.text}"
-        )
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = requests.put(url, headers=headers, data=content, timeout=60)
+            if r.status_code in (200, 201):
+                print(f"⬆️  Uploaded {local_path} → blob:{blob_path}")
+                return
+            elif r.status_code == 503:
+                wait = 10 * attempt
+                print(f"⚠️  Blob service unavailable (attempt {attempt}/{max_retries}) — retrying in {wait}s...")
+                time.sleep(wait)
+            else:
+                raise RuntimeError(
+                    f"Blob upload failed for {blob_path}: HTTP {r.status_code} — {r.text}"
+                )
+        except requests.exceptions.RequestException as e:
+            wait = 10 * attempt
+            print(f"⚠️  Request error on attempt {attempt}/{max_retries}: {e} — retrying in {wait}s...")
+            time.sleep(wait)
+
+    raise RuntimeError(f"Blob upload failed for {blob_path} after {max_retries} attempts.")
 
 # ---------------------------------------------------------------------------
 # Ticker list & config  (unchanged)
