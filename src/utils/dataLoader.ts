@@ -1,12 +1,14 @@
 import type {
 	BubbleData,
 	ChartDataPoint,
+	ConfidenceLevel,
 	DataSource,
 	OptionType,
 	PriceDifferenceDataPoint,
 	RegularPriceData,
 	StockCode,
 } from "../types/bubbleData";
+import { recomputeEstimateForCI } from "../types/bubbleData";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WRDS (static historical dataset) — hardcoded Blob URLs, these never change
@@ -152,6 +154,7 @@ export function transformDataForChart(
 	optionType: OptionType,
 	startDate?: Date,
 	endDate?: Date,
+	confidenceLevel: ConfidenceLevel = 0.95,
 ): ChartDataPoint[] {
 	let filteredData = bubbleData.time_series_data;
 
@@ -170,9 +173,18 @@ export function transformDataForChart(
 	return filteredData.map((point) => ({
 		date: point.date,
 		stockPrice: point.stock_prices.adjusted,
-		tau1: point.bubble_estimates.daily_grouped[0][optionType],
-		tau2: point.bubble_estimates.daily_grouped[1][optionType],
-		tau3: point.bubble_estimates.daily_grouped[2][optionType],
+		tau1: recomputeEstimateForCI(
+			point.bubble_estimates.daily_grouped[0][optionType],
+			confidenceLevel,
+		),
+		tau2: recomputeEstimateForCI(
+			point.bubble_estimates.daily_grouped[1][optionType],
+			confidenceLevel,
+		),
+		tau3: recomputeEstimateForCI(
+			point.bubble_estimates.daily_grouped[2][optionType],
+			confidenceLevel,
+		),
 	}));
 }
 
