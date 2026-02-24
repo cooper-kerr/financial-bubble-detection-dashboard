@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
 	BubbleData,
 	ChartDataPoint,
+	ConfidenceLevel,
 	DataSource,
 	OptionType,
 	PriceDifferenceDataPoint,
@@ -21,6 +22,7 @@ interface DashboardState {
 	dataSource: DataSource;
 	startDate: Date | null;
 	endDate: Date | null;
+	confidenceLevel: ConfidenceLevel;
 	bubbleData: BubbleData | null;
 	regularPriceData: RegularPriceData[] | null;
 	loading: boolean;
@@ -33,6 +35,7 @@ export function useDashboardData() {
 		dataSource: "WRDS",
 		startDate: null,
 		endDate: null,
+		confidenceLevel: 0.95 as ConfidenceLevel,
 		bubbleData: null,
 		regularPriceData: null,
 		loading: false,
@@ -156,6 +159,10 @@ export function useDashboardData() {
 		[],
 	);
 
+	const setConfidenceLevel = useCallback((level: ConfidenceLevel) => {
+		setState((prev) => ({ ...prev, confidenceLevel: level }));
+	}, []);
+
 	const resetDateRange = useCallback(() => {
 		if (state.bubbleData) {
 			const dateRange = getDateRange(state.bubbleData);
@@ -183,21 +190,24 @@ export function useDashboardData() {
 				"put",
 				state.startDate || undefined,
 				state.endDate || undefined,
+				state.confidenceLevel,
 			),
 			call: transformDataForChart(
 				state.bubbleData,
 				"call",
 				state.startDate || undefined,
 				state.endDate || undefined,
+				state.confidenceLevel,
 			),
 			combined: transformDataForChart(
 				state.bubbleData,
 				"combined",
 				state.startDate || undefined,
 				state.endDate || undefined,
+				state.confidenceLevel,
 			),
 		};
-	}, [state.bubbleData, state.startDate, state.endDate]);
+	}, [state.bubbleData, state.startDate, state.endDate, state.confidenceLevel]);
 
 	const getChartData = useCallback(
 		(optionType: OptionType): ChartDataPoint[] => {
@@ -233,6 +243,7 @@ export function useDashboardData() {
 		dataSource: state.dataSource,
 		startDate: state.startDate,
 		endDate: state.endDate,
+		confidenceLevel: state.confidenceLevel,
 		bubbleData: state.bubbleData,
 		regularPriceData: state.regularPriceData,
 		loading: state.loading,
@@ -241,6 +252,7 @@ export function useDashboardData() {
 		setDataSource,
 		setDateRange,
 		resetDateRange,
+		setConfidenceLevel,
 		getChartData,
 		getPriceDifferenceData,
 		getAvailableDateRange,

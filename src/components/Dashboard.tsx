@@ -24,6 +24,8 @@ export function Dashboard() {
 		setDataSource,
 		setDateRange,
 		resetDateRange,
+		confidenceLevel,
+		setConfidenceLevel,
 		getChartData,
 		getPriceDifferenceData,
 		getAvailableDateRange,
@@ -66,6 +68,12 @@ export function Dashboard() {
 	const availableDateRange = getAvailableDateRange();
 	const tauGroupsInfo = bubbleData?.metadata.tau_groups_info || [];
 
+	// hasSeData: true when the first data point has a se value in at least one estimate.
+	// Used to enable/disable the confidence level selector.
+	const hasSeData = Boolean(
+		bubbleData?.time_series_data[0]?.bubble_estimates.daily_grouped[0]?.combined?.se !== undefined,
+	);
+
 	return (
 		<div className="min-h-screen bg-background">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -82,6 +90,9 @@ export function Dashboard() {
 					loading={loading}
 					visibleCharts={visibleCharts}
 					onToggleChart={toggleChart}
+					confidenceLevel={confidenceLevel}
+					onConfidenceLevelChange={setConfidenceLevel}
+					hasSeData={hasSeData}
 				/>
 
 				{/* Charts Grid */}

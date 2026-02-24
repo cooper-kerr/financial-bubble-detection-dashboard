@@ -12,7 +12,9 @@ import {
 import { RotateCcw } from "lucide-react";
 import React from "react";
 import {
+	CONFIDENCE_LEVELS,
 	STOCK_LIST,
+	type ConfidenceLevel,
 	type DataSource,
 	type StockCode,
 } from "../types/bubbleData";
@@ -21,34 +23,29 @@ import type { ChartKey } from "./Dashboard";
 const CHART_TOGGLE_CONFIG: {
 	key: ChartKey;
 	label: string;
-	shortLabel: string;
 	activeClass: string;
 }[] = [
 	{
 		key: "put",
 		label: "Put Options",
-		shortLabel: "Put",
 		activeClass:
 			"bg-blue-500 text-white border-blue-500 hover:bg-blue-600 hover:border-blue-600",
 	},
 	{
 		key: "call",
 		label: "Call Options",
-		shortLabel: "Call",
 		activeClass:
 			"bg-green-500 text-white border-green-500 hover:bg-green-600 hover:border-green-600",
 	},
 	{
 		key: "combined",
 		label: "Combined",
-		shortLabel: "Combined",
 		activeClass:
 			"bg-amber-500 text-white border-amber-500 hover:bg-amber-600 hover:border-amber-600",
 	},
 	{
 		key: "price",
 		label: "Price Comparison",
-		shortLabel: "Price",
 		activeClass:
 			"bg-red-500 text-white border-red-500 hover:bg-red-600 hover:border-red-600",
 	},
@@ -67,6 +64,11 @@ interface DashboardControlsProps {
 	loading?: boolean;
 	visibleCharts: Set<ChartKey>;
 	onToggleChart: (key: ChartKey) => void;
+	confidenceLevel: ConfidenceLevel;
+	onConfidenceLevelChange: (level: ConfidenceLevel) => void;
+	/** True when the loaded JSON contains se values (post-pipeline-update).
+	 *  When false, the CI selector renders but is disabled with an explanatory badge. */
+	hasSeData: boolean;
 }
 
 export const DashboardControls = React.memo(function DashboardControls({
@@ -82,6 +84,9 @@ export const DashboardControls = React.memo(function DashboardControls({
 	loading,
 	visibleCharts,
 	onToggleChart,
+	confidenceLevel,
+	onConfidenceLevelChange,
+	hasSeData,
 }: DashboardControlsProps) {
 	return (
 		<Card className="mb-6">
@@ -92,6 +97,7 @@ export const DashboardControls = React.memo(function DashboardControls({
 				<ThemeSwitcher />
 			</CardHeader>
 			<CardContent>
+				{/* ── Row 1: Stock / Source / Dates / Reset ── */}
 				<div className="flex flex-wrap items-end gap-4">
 					{/* Stock Selector */}
 					<div className="flex flex-col space-y-2">
@@ -176,7 +182,7 @@ export const DashboardControls = React.memo(function DashboardControls({
 					</div>
 				</div>
 
-				{/* Chart Visibility Toggles */}
+				{/* ── Row 2: Visible Charts toggles ── */}
 				<div className="mt-5 flex flex-wrap items-center gap-3">
 					<span className="text-sm font-medium text-muted-foreground shrink-0">
 						Visible charts:
@@ -204,7 +210,6 @@ export const DashboardControls = React.memo(function DashboardControls({
 										: "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
 								].join(" ")}
 							>
-								{/* Dot indicator matching chart color */}
 								<span
 									className={[
 										"h-2 w-2 rounded-full",
@@ -212,6 +217,51 @@ export const DashboardControls = React.memo(function DashboardControls({
 									].join(" ")}
 								/>
 								{label}
+							</button>
+						);
+					})}
+				</div>
+
+				{/* ── Row 3: Confidence level selector ── */}
+				<div className="mt-4 flex flex-wrap items-center gap-3">
+					<span
+						className="text-sm font-medium text-muted-foreground shrink-0"
+						title={
+							!hasSeData
+								? "Confidence level selection requires re-running the Python pipeline with se emission enabled."
+								: undefined
+						}
+					>
+						Confidence level:
+						{!hasSeData && (
+							<span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+								Requires SE in JSON
+							</span>
+						)}
+					</span>
+					{CONFIDENCE_LEVELS.map((level) => {
+						const isActive = confidenceLevel === level;
+						return (
+							<button
+								key={level}
+								type="button"
+								onClick={() => onConfidenceLevelChange(level)}
+								disabled={!hasSeData || loading}
+								title={
+									!hasSeData
+										? "Re-run pipeline to add standard errors to JSON"
+										: `Show ${(level * 100).toFixed(0)}% confidence intervals`
+								}
+								className={[
+									"inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium",
+									"transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+									"disabled:pointer-events-none disabled:opacity-40",
+									isActive
+										? "bg-primary text-primary-foreground border-primary shadow-sm"
+										: "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+								].join(" ")}
+							>
+								{(level * 100).toFixed(0)}%
 							</button>
 						);
 					})}
