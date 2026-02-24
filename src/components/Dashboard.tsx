@@ -1,10 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
+import { useState } from "react";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { DashboardControls } from "./DashboardControls";
 import { PlotlyBubbleChart } from "./PlotlyBubbleChart";
 import { PriceDifferenceChart } from "./PriceDifferenceChart";
+
+export type ChartKey = "put" | "call" | "combined" | "price";
+
+const ALL_CHARTS: ChartKey[] = ["put", "call", "combined", "price"];
 
 export function Dashboard() {
 	const {
@@ -25,6 +30,25 @@ export function Dashboard() {
 		getPriceDifferenceData,
 		getAvailableDateRange,
 	} = useDashboardData();
+
+	// All charts visible by default
+	const [visibleCharts, setVisibleCharts] = useState<Set<ChartKey>>(
+		new Set(ALL_CHARTS),
+	);
+
+	const toggleChart = (key: ChartKey) => {
+		setVisibleCharts((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) {
+				// Prevent hiding the last remaining chart
+				if (next.size === 1) return prev;
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			return next;
+		});
+	};
 
 	if (error) {
 		return (
@@ -64,6 +88,8 @@ export function Dashboard() {
 					onResetDateRange={resetDateRange}
 					availableDateRange={availableDateRange}
 					loading={loading}
+					visibleCharts={visibleCharts}
+					onToggleChart={toggleChart}
 					confidenceLevel={confidenceLevel}
 					onConfidenceLevelChange={setConfidenceLevel}
 					hasSeData={hasSeData}
@@ -71,42 +97,46 @@ export function Dashboard() {
 
 				{/* Charts Grid */}
 				<div className="space-y-6">
-					{/* Put Options Chart */}
-					<PlotlyBubbleChart
-						data={getChartData("put")}
-						optionType="put"
-						title="Put Options Bubble Estimates"
-						mathExpression="\hat{\Pi}_p(\tau)"
-						tauGroupsInfo={tauGroupsInfo}
-						loading={loading}
-					/>
+					{visibleCharts.has("put") && (
+						<PlotlyBubbleChart
+							data={getChartData("put")}
+							optionType="put"
+							title="Put Options Bubble Estimates"
+							mathExpression="\hat{\Pi}_p(\tau)"
+							tauGroupsInfo={tauGroupsInfo}
+							loading={loading}
+						/>
+					)}
 
-					{/* Call Options Chart */}
-					<PlotlyBubbleChart
-						data={getChartData("call")}
-						optionType="call"
-						title="Call Options Bubble Estimates"
-						mathExpression="\hat{\Pi}_c(\tau)"
-						tauGroupsInfo={tauGroupsInfo}
-						loading={loading}
-					/>
+					{visibleCharts.has("call") && (
+						<PlotlyBubbleChart
+							data={getChartData("call")}
+							optionType="call"
+							title="Call Options Bubble Estimates"
+							mathExpression="\hat{\Pi}_c(\tau)"
+							tauGroupsInfo={tauGroupsInfo}
+							loading={loading}
+						/>
+					)}
 
-					{/* Combined Options Chart */}
-					<PlotlyBubbleChart
-						data={getChartData("combined")}
-						optionType="combined"
-						title="Combined Options Bubble Estimates"
-						mathExpression="\hat{\Pi}_{cp}(\tau)"
-						tauGroupsInfo={tauGroupsInfo}
-						loading={loading}
-					/>
+					{visibleCharts.has("combined") && (
+						<PlotlyBubbleChart
+							data={getChartData("combined")}
+							optionType="combined"
+							title="Combined Options Bubble Estimates"
+							mathExpression="\hat{\Pi}_{cp}(\tau)"
+							tauGroupsInfo={tauGroupsInfo}
+							loading={loading}
+						/>
+					)}
 
-					{/* Price Difference Chart */}
-					<PriceDifferenceChart
-						data={getPriceDifferenceData()}
-						title={`${selectedStock} - Price Comparison`}
-						loading={loading}
-					/>
+					{visibleCharts.has("price") && (
+						<PriceDifferenceChart
+							data={getPriceDifferenceData()}
+							title={`${selectedStock} - Price Comparison`}
+							loading={loading}
+						/>
+					)}
 				</div>
 
 				{/* Footer */}
