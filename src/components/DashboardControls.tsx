@@ -12,47 +12,12 @@ import {
 import { RotateCcw } from "lucide-react";
 import React from "react";
 import {
+	CONFIDENCE_LEVELS,
 	STOCK_LIST,
+	type ConfidenceLevel,
 	type DataSource,
 	type StockCode,
 } from "../types/bubbleData";
-import type { ChartKey } from "./Dashboard";
-
-const CHART_TOGGLE_CONFIG: {
-	key: ChartKey;
-	label: string;
-	shortLabel: string;
-	activeClass: string;
-}[] = [
-	{
-		key: "put",
-		label: "Put Options",
-		shortLabel: "Put",
-		activeClass:
-			"bg-blue-500 text-white border-blue-500 hover:bg-blue-600 hover:border-blue-600",
-	},
-	{
-		key: "call",
-		label: "Call Options",
-		shortLabel: "Call",
-		activeClass:
-			"bg-green-500 text-white border-green-500 hover:bg-green-600 hover:border-green-600",
-	},
-	{
-		key: "combined",
-		label: "Combined",
-		shortLabel: "Combined",
-		activeClass:
-			"bg-amber-500 text-white border-amber-500 hover:bg-amber-600 hover:border-amber-600",
-	},
-	{
-		key: "price",
-		label: "Price Comparison",
-		shortLabel: "Price",
-		activeClass:
-			"bg-red-500 text-white border-red-500 hover:bg-red-600 hover:border-red-600",
-	},
-];
 
 interface DashboardControlsProps {
 	selectedStock: StockCode;
@@ -65,8 +30,11 @@ interface DashboardControlsProps {
 	onResetDateRange: () => void;
 	availableDateRange: { min: Date; max: Date } | null;
 	loading?: boolean;
-	visibleCharts: Set<ChartKey>;
-	onToggleChart: (key: ChartKey) => void;
+	confidenceLevel: ConfidenceLevel;
+	onConfidenceLevelChange: (level: ConfidenceLevel) => void;
+	/** True when the loaded data contains se values (newer JSONs).
+	 *  When false, the CI selector is shown but grayed out with a tooltip. */
+	hasSeData: boolean;
 }
 
 export const DashboardControls = React.memo(function DashboardControls({
@@ -80,8 +48,9 @@ export const DashboardControls = React.memo(function DashboardControls({
 	onResetDateRange,
 	availableDateRange,
 	loading,
-	visibleCharts,
-	onToggleChart,
+	confidenceLevel,
+	onConfidenceLevelChange,
+	hasSeData,
 }: DashboardControlsProps) {
 	return (
 		<Card className="mb-6">
@@ -176,42 +145,46 @@ export const DashboardControls = React.memo(function DashboardControls({
 					</div>
 				</div>
 
-				{/* Chart Visibility Toggles */}
+				{/* Confidence Level Selector */}
 				<div className="mt-5 flex flex-wrap items-center gap-3">
-					<span className="text-sm font-medium text-muted-foreground shrink-0">
-						Visible charts:
+					<span
+						className="text-sm font-medium text-muted-foreground shrink-0"
+						title={
+							!hasSeData
+								? "Confidence level selection requires re-running the Python pipeline with se emission enabled."
+								: undefined
+						}
+					>
+						Confidence level:
+						{!hasSeData && (
+							<span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+								Requires SE in JSON
+							</span>
+						)}
 					</span>
-					{CHART_TOGGLE_CONFIG.map(({ key, label, activeClass }) => {
-						const isActive = visibleCharts.has(key);
-						const isLastActive = visibleCharts.size === 1 && isActive;
+					{CONFIDENCE_LEVELS.map((level) => {
+						const isActive = confidenceLevel === level;
 						return (
 							<button
-								key={key}
+								key={level}
 								type="button"
-								onClick={() => onToggleChart(key)}
-								disabled={isLastActive}
+								onClick={() => onConfidenceLevelChange(level)}
+								disabled={!hasSeData || loading}
 								title={
-									isLastActive
-										? "At least one chart must remain visible"
-										: `${isActive ? "Hide" : "Show"} ${label}`
+									!hasSeData
+										? "Re-run pipeline to add standard errors to JSON"
+										: `Show ${(level * 100).toFixed(0)}% confidence intervals`
 								}
 								className={[
-									"inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-all duration-150",
-									"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-									"disabled:pointer-events-none disabled:opacity-50",
+									"inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium",
+									"transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+									"disabled:pointer-events-none disabled:opacity-40",
 									isActive
-										? activeClass
+										? "bg-primary text-primary-foreground border-primary shadow-sm"
 										: "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
 								].join(" ")}
 							>
-								{/* Dot indicator matching chart color */}
-								<span
-									className={[
-										"h-2 w-2 rounded-full",
-										isActive ? "bg-white/80" : "bg-muted-foreground/40",
-									].join(" ")}
-								/>
-								{label}
+								{(level * 100).toFixed(0)}%
 							</button>
 						);
 					})}
