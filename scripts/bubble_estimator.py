@@ -336,17 +336,20 @@ def process_stock(stockcode):
                     "put": {
                         "mu": float(rsbubcdf_bc_mu[t, tau_idx, 0]) if not np.isnan(rsbubcdf_bc_mu[t, tau_idx, 0]) else 0.0,
                         "lb": float(rsbubcdf_bc_lb[t, tau_idx, 0]) if not np.isnan(rsbubcdf_bc_lb[t, tau_idx, 0]) else 0.0,
-                        "ub": float(rsbubcdf_bc_ub[t, tau_idx, 0]) if not np.isnan(rsbubcdf_bc_ub[t, tau_idx, 0]) else 0.0
+                        "ub": float(rsbubcdf_bc_ub[t, tau_idx, 0]) if not np.isnan(rsbubcdf_bc_ub[t, tau_idx, 0]) else 0.0,
+                        "se": float(rsbubcdf_se[t, tau_idx, 0]) if not np.isnan(rsbubcdf_se[t, tau_idx, 0]) else 0.0
                     },
                     "call": {
                         "mu": float(rsbubcdf_bc_mu[t, tau_idx, 1]) if not np.isnan(rsbubcdf_bc_mu[t, tau_idx, 1]) else 0.0,
                         "lb": float(rsbubcdf_bc_lb[t, tau_idx, 1]) if not np.isnan(rsbubcdf_bc_lb[t, tau_idx, 1]) else 0.0,
-                        "ub": float(rsbubcdf_bc_ub[t, tau_idx, 1]) if not np.isnan(rsbubcdf_bc_ub[t, tau_idx, 1]) else 0.0
+                        "ub": float(rsbubcdf_bc_ub[t, tau_idx, 1]) if not np.isnan(rsbubcdf_bc_ub[t, tau_idx, 1]) else 0.0,
+                        "se": float(rsbubcdf_se[t, tau_idx, 1]) if not np.isnan(rsbubcdf_se[t, tau_idx, 1]) else 0.0
                     },
                     "combined": {
                         "mu": float(rsbubcdf_bc_mu[t, tau_idx, 2]) if not np.isnan(rsbubcdf_bc_mu[t, tau_idx, 2]) else 0.0,
                         "lb": float(rsbubcdf_bc_lb[t, tau_idx, 2]) if not np.isnan(rsbubcdf_bc_lb[t, tau_idx, 2]) else 0.0,
-                        "ub": float(rsbubcdf_bc_ub[t, tau_idx, 2]) if not np.isnan(rsbubcdf_bc_ub[t, tau_idx, 2]) else 0.0
+                        "ub": float(rsbubcdf_bc_ub[t, tau_idx, 2]) if not np.isnan(rsbubcdf_bc_ub[t, tau_idx, 2]) else 0.0,
+                        "se": float(rsbubcdf_se[t, tau_idx, 2]) if not np.isnan(rsbubcdf_se[t, tau_idx, 2]) else 0.0
                     }
                 }
                 daily_grouped.append(tau_group_data)
