@@ -279,6 +279,46 @@ export const PlotlyBubbleChart = React.memo(function PlotlyBubbleChart({
 				namelength: -1,
 			},
 
+			shapes: [
+				{
+					// Zero-bubble reference line spanning full chart width
+					type: "line" as const,
+					xref: "paper" as const,
+					yref: "y" as const,
+					x0: 0,
+					x1: 1,
+					y0: 0,
+					y1: 0,
+					line: {
+						color:
+							theme === "dark"
+								? "rgba(250, 204, 21, 0.85)"
+								: "rgba(202, 138, 4, 0.9)",
+						width: 2,
+						dash: "dot" as const,
+					},
+				},
+			],
+			annotations: [
+				{
+					// Label pinned to right edge of the zero line
+					xref: "paper" as const,
+					yref: "y" as const,
+					x: 1.01,
+					y: 0,
+					xanchor: "left" as const,
+					yanchor: "middle" as const,
+					text: "Π = 0",
+					showarrow: false,
+					font: {
+						size: 11,
+						color:
+							theme === "dark"
+								? "rgba(250, 204, 21, 0.85)"
+								: "rgba(202, 138, 4, 0.9)",
+					},
+				},
+			],
 			showlegend: true,
 			legend: {
 				orientation: "h" as const,
