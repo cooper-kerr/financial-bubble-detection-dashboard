@@ -1,4 +1,4 @@
-name: Daily Yahoo Finance Bubble Update
+name: CSV storage Backup
 on:
   schedule:
     - cron: '59 20 * * *'
