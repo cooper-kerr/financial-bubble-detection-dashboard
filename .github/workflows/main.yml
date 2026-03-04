@@ -1,8 +1,6 @@
 name: Daily Yahoo Finance Bubble Update
 
 on:
-  schedule:
-    - cron: '59 20 * * *'
   workflow_dispatch:
 
 jobs:
