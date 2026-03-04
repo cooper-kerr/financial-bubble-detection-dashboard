@@ -349,8 +349,9 @@ for ticker_symbol in Stockcode:
     data_file  = os.path.join(save_folder, f"{filesource}.csv")
 
     # ⬇️  Pull existing CSVs from Vercel Blob so we can append today's rows
-    download_csv_from_blob(f"csv/{filesource}_count.csv", count_file)
-    download_csv_from_blob(f"csv/{filesource}.csv",       data_file)
+    # comment these out for now until vercel storage back up
+   # download_csv_from_blob(f"csv/{filesource}_count.csv", count_file)
+   # download_csv_from_blob(f"csv/{filesource}.csv",       data_file)
 
     # ---- Append logic (unchanged) ----
     if os.path.exists(count_file):
@@ -366,7 +367,8 @@ for ticker_symbol in Stockcode:
     indexopt3.to_csv(data_file, index=False)
 
     # ⬆️  Push updated CSVs back to Vercel Blob (overwrites previous version)
-    upload_csv_to_blob(count_file, f"csv/{filesource}_count.csv")
-    upload_csv_to_blob(data_file,  f"csv/{filesource}.csv")
+      # comment these out for now until vercel storage back up
+   # upload_csv_to_blob(count_file, f"csv/{filesource}_count.csv")
+   # upload_csv_to_blob(data_file,  f"csv/{filesource}.csv")
 
     print(f"✅ Finished updating {ticker_symbol}.")
