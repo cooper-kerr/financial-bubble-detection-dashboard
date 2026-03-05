@@ -382,3 +382,15 @@ For questions about the bubble detection methodology or technical implementation
 - **[Plotly.js Documentation](https://plotly.com/javascript/)**: Official Plotly documentation
 - **[TanStack Router](https://tanstack.com/router)**: Router documentation
 - **[shadcn/ui](https://ui.shadcn.com/)**: UI component library documentation
+
+- ## Credits
+
+This project was made possible with the contributions of the following people:
+
+| Name | Email |
+|------|-------|
+| Zilian Xue | [zxue0587@uni.sydney.edu.au](mailto:zxue0587@uni.sydney.edu.au) |
+| Iftikhar Amiri | [iami0027@uni.sydney.edu.au](mailto:iami0027@uni.sydney.edu.au) |
+| Luka Adzic | [lukaadz@wharton.upenn.edu](mailto:lukaadz@wharton.upenn.edu) |
+| Cooper Kerr | [coopkerr@icloud.com](mailto:coopkerr@icloud.com) |
+| Prachi Kumari | [prachinor@gmail.com](mailto:prachinor@gmail.com) |
