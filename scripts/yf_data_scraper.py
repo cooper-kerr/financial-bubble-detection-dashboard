@@ -3,6 +3,7 @@ from pathlib import Path
 import yfinance as yf
 import numpy as np
 import pandas as pd
+import hashlib
 from datetime import datetime, timedelta
 from fredapi import Fred
 from scipy.stats import norm
@@ -59,6 +60,16 @@ def upload_csv_to_blob(local_path: str, blob_path: str) -> None:
         raise RuntimeError(
             f"Blob upload failed for {blob_path}: HTTP {r.status_code} — {r.text}"
         )
+
+
+def file_sha256(path: str) -> str | None:
+    """
+    Return the SHA-256 hash of a file if it exists, otherwise None.
+    """
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
 # ---------------------------------------------------------------------------
 # Ticker list & config  (unchanged)
@@ -343,6 +354,9 @@ for ticker_symbol in Stockcode:
     download_csv_from_blob(f"csv/{filesource}.csv",       data_file)
 
     # ---- Append logic (unchanged) ----
+    count_hash_before = file_sha256(count_file)
+    data_hash_before = file_sha256(data_file)
+
     if os.path.exists(count_file):
         existing_count = pd.read_csv(count_file)
         optcount = pd.concat([existing_count, optcount], ignore_index=True)
@@ -355,8 +369,18 @@ for ticker_symbol in Stockcode:
         indexopt3.drop_duplicates(subset=["dateraw", "cp_flag", "tauday", "x"], keep="last", inplace=True)
     indexopt3.to_csv(data_file, index=False)
 
-    # ⬆️  Push updated CSVs back to Vercel Blob (overwrites previous version)
-    upload_csv_to_blob(count_file, f"csv/{filesource}_count.csv")
-    upload_csv_to_blob(data_file,  f"csv/{filesource}.csv")
+    # ⬆️  Push updated CSVs back to Vercel Blob only if content actually changed.
+    count_hash_after = file_sha256(count_file)
+    data_hash_after = file_sha256(data_file)
+
+    if count_hash_before != count_hash_after:
+        upload_csv_to_blob(count_file, f"csv/{filesource}_count.csv")
+    else:
+        print(f"⏭️  No changes detected for csv/{filesource}_count.csv; skipping Blob upload.")
+
+    if data_hash_before != data_hash_after:
+        upload_csv_to_blob(data_file,  f"csv/{filesource}.csv")
+    else:
+        print(f"⏭️  No changes detected for csv/{filesource}.csv; skipping Blob upload.")
 
     print(f"✅ Finished updating {ticker_symbol}.")

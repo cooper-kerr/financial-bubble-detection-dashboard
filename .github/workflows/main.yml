@@ -32,6 +32,12 @@ jobs:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
 
+      - name: Upload CSV staging artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yahoo-csv-staging
+          path: data/csv/*.csv
+
   generate-mat-json:
     name: Generate JSON & Upload to Blob
     runs-on: ubuntu-latest
@@ -52,8 +58,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy scipy matplotlib fredapi requests
 
+      - name: Download CSV staging artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: yahoo-csv-staging
+          path: data/csv
+
       - name: Run MAT generator
-        # sbub_run.py handles its own per-ticker CSV download from Blob internally
+        # sbub_run.py prefers local CSV artifacts and falls back to Blob when needed.
         run: python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -78,12 +90,15 @@ jobs:
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       - name: Upload new JSONs to Vercel Blob & update mapping
+        id: upload_blob
         run: |
           export PATH="$HOME/.bun/bin:$PATH"
           bun run scripts/update-blob-urls.ts
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
 
       - name: Trigger Vercel Redeploy
+        if: steps.upload_blob.outputs.blob_changed == 'true'
         run: |
           curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"

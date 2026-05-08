@@ -1,22 +1,64 @@
 import { put } from "@vercel/blob";
 import { config } from "dotenv";
-import { writeFileSync, readFileSync, readdirSync } from "fs";
+import { createHash } from "crypto";
+import { appendFileSync, existsSync, writeFileSync, readFileSync, readdirSync } from "fs";
 import { join } from "path";
 
 config({ path: ".env.local" });
 
 const BLOB_READ_WRITE_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+const BLOB_BASE_URL = process.env.BLOB_BASE_URL;
 if (!BLOB_READ_WRITE_TOKEN) {
   console.error("❌ BLOB_READ_WRITE_TOKEN environment variable missing");
+  process.exit(1);
+}
+if (!BLOB_BASE_URL) {
+  console.error("❌ BLOB_BASE_URL environment variable missing");
   process.exit(1);
 }
 
 // Directory where bubble_estimator.py writes its JSON files
 const JSON_OUTPUT_DIR = join(process.cwd(), "public", "data");
+const HASH_MANIFEST_BLOB_NAME = "blob_hash_manifest.json";
+const HASH_MANIFEST_URL = `${BLOB_BASE_URL}/${HASH_MANIFEST_BLOB_NAME}`;
+const BLOB_MAPPING_URL = `${BLOB_BASE_URL}/blob_mapping.json`;
+
+function sha256(content: Buffer): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+async function fetchJsonOrNull<T>(url: string): Promise<T | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as T;
+  } catch (error) {
+    console.warn(`⚠️  Failed to fetch ${url}; treating as empty state.`, error);
+    return null;
+  }
+}
+
+function setGithubOutput(name: string, value: string) {
+  const githubOutputPath = process.env.GITHUB_OUTPUT;
+  if (!githubOutputPath || !existsSync(githubOutputPath)) {
+    return;
+  }
+  appendFileSync(githubOutputPath, `${name}=${value}\n`);
+}
 
 async function updateBlobUrls() {
   try {
-    const urlMapping: Record<string, string> = {};
+    const urlMapping = (await fetchJsonOrNull<Record<string, string>>(BLOB_MAPPING_URL)) ?? {};
+    const previousHashManifest =
+      (await fetchJsonOrNull<Record<string, string>>(HASH_MANIFEST_URL)) ?? {};
+    const nextHashManifest: Record<string, string> = {};
+    let changedUploads = 0;
+    let mappingChanged = false;
 
     // ── Step 1: Upload every JSON from public/data/ to Vercel Blob ──
     const jsonFiles = readdirSync(JSON_OUTPUT_DIR).filter(f => f.endsWith(".json"));
@@ -26,11 +68,26 @@ async function updateBlobUrls() {
       process.exit(1);
     }
 
-    console.log(`📦 Found ${jsonFiles.length} JSON files to upload...`);
+    console.log(`📦 Found ${jsonFiles.length} JSON files to evaluate...`);
 
     for (const filename of jsonFiles) {
       const localPath = join(JSON_OUTPUT_DIR, filename);
       const fileContent = readFileSync(localPath);
+      const fileHash = sha256(fileContent);
+
+      const match = filename.match(/^bubble_data_([^_]+(?:_[^_]+)*)_splitadj_/);
+      if (!match) {
+        console.warn(`⚠️  Could not extract stock code from filename: ${filename}`);
+        continue;
+      }
+
+      const stock = match[1];
+      nextHashManifest[filename] = fileHash;
+
+      if (previousHashManifest[filename] === fileHash && urlMapping[stock]) {
+        console.log(`⏭️  No content change for ${filename}; reusing existing Blob URL.`);
+        continue;
+      }
 
       // Upload to Blob under the same filename, overwriting any previous version.
       // addRandomSuffix: false keeps URLs deterministic between daily runs.
@@ -41,28 +98,46 @@ async function updateBlobUrls() {
         contentType: "application/json",
       });
 
-      console.log(`⬆️  Uploaded ${filename} → ${blob.url}`);
-
-      // Match filenames like: bubble_data_AAPL_splitadj_2025to2025.json
-      const match = filename.match(/^bubble_data_([^_]+(?:_[^_]+)*)_splitadj_/);
-      if (match) {
-        const stock = match[1];
-        urlMapping[stock] = blob.url;
-        console.log(`✅ Mapped ${stock} → ${blob.url}`);
-      } else {
-        console.warn(`⚠️  Could not extract stock code from filename: ${filename}`);
+      changedUploads += 1;
+      if (urlMapping[stock] !== blob.url) {
+        mappingChanged = true;
       }
+      urlMapping[stock] = blob.url;
+      console.log(`⬆️  Uploaded ${filename} → ${blob.url}`);
+      console.log(`✅ Mapped ${stock} → ${blob.url}`);
     }
 
-    if (Object.keys(urlMapping).length === 0) {
+    if (Object.keys(nextHashManifest).length === 0) {
       console.error("❌ No stock codes could be extracted — check filename format.");
       process.exit(1);
     }
 
-    // ── Step 2: Upload blob_mapping.json to Blob ──
-    // dataLoader.ts fetches this at runtime to get the current URLs.
-    // This replaces the old approach of modifying dataLoader.ts source and committing to git.
+    // Remove stale mappings when a local file disappeared from public/data.
+    const expectedStocks = new Set(
+      jsonFiles
+        .map((filename) => filename.match(/^bubble_data_([^_]+(?:_[^_]+)*)_splitadj_/)?.[1])
+        .filter((stock): stock is string => Boolean(stock)),
+    );
+    for (const stock of Object.keys(urlMapping)) {
+      if (!expectedStocks.has(stock)) {
+        delete urlMapping[stock];
+        mappingChanged = true;
+      }
+    }
+
+    // ── Step 2: Upload blob_mapping.json and the hash manifest only when needed ──
     const mappingJson = JSON.stringify(urlMapping, null, 2);
+    const hashManifestJson = JSON.stringify(nextHashManifest, null, 2);
+    const manifestChanged =
+      JSON.stringify(previousHashManifest) !== JSON.stringify(nextHashManifest);
+
+    if (changedUploads === 0 && !mappingChanged && !manifestChanged) {
+      console.log("🎉 No JSON content changes detected; skipping mapping and manifest uploads.");
+      writeFileSync(join(process.cwd(), "blob_mapping.json"), mappingJson);
+      setGithubOutput("blob_changed", "false");
+      setGithubOutput("json_upload_count", "0");
+      return;
+    }
 
     const mappingBlob = await put("blob_mapping.json", mappingJson, {
       access: "public",
@@ -73,12 +148,23 @@ async function updateBlobUrls() {
 
     console.log(`✅ Uploaded blob_mapping.json to Blob → ${mappingBlob.url}`);
 
+    const hashManifestBlob = await put(HASH_MANIFEST_BLOB_NAME, hashManifestJson, {
+      access: "public",
+      token: BLOB_READ_WRITE_TOKEN,
+      addRandomSuffix: false,
+      contentType: "application/json",
+    });
+
+    console.log(`✅ Uploaded ${HASH_MANIFEST_BLOB_NAME} to Blob → ${hashManifestBlob.url}`);
+
     // Also save locally for debugging reference (not committed to git)
     const localMappingPath = join(process.cwd(), "blob_mapping.json");
     writeFileSync(localMappingPath, mappingJson);
     console.log(`💾 Saved blob_mapping.json locally for reference`);
+    setGithubOutput("blob_changed", "true");
+    setGithubOutput("json_upload_count", String(changedUploads));
 
-    console.log(`\n🎉 Done. ${Object.keys(urlMapping).length} stocks uploaded and mapped.`);
+    console.log(`\n🎉 Done. ${changedUploads} JSON file(s) uploaded and ${Object.keys(urlMapping).length} stocks mapped.`);
     console.log(`   dataLoader.ts will fetch the mapping at runtime from:\n   ${mappingBlob.url}`);
 
   } catch (err) {
