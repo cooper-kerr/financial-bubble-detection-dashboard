@@ -37,12 +37,12 @@ bun run upload-data
 ```
 
 This will:
-- Upload all JSON files from `public/data/` to Blob Storage
+- Upload JSON files from `public/data/` to Blob Storage
 - Generate public URLs for each file
 - Display a URL mapping for easy integration
 
 ### 6. Update Your Code
-After upload, copy the URL mapping from the console output and update the `BLOB_URLS` object in `src/utils/dataLoader.ts`.
+After upload, verify `blob_mapping.json`. The dashboard fetches this mapping at runtime, so you do not need to hardcode per-file Yahoo URLs in `src/utils/dataLoader.ts`.
 
 ## 🔧 How It Works
 
@@ -56,8 +56,11 @@ After upload, copy the URL mapping from the console output and update the `BLOB_
 https://your-blob-store.vercel-storage.com/bubble_data_AAPL_splitadj_1996to2023.json
 ```
 
-### Fallback Strategy
-The code automatically falls back to local files if Blob URLs aren't configured, so you can develop locally and use Blob Storage in production.
+### Runtime Mapping
+The app reads `blob_mapping.json` from Blob Storage at runtime for the daily Yahoo dataset. Static WRDS assets remain separately configured.
+
+### Incremental Uploads
+The scheduled pipeline now avoids rewriting unchanged CSV and JSON files. It also skips the Vercel redeploy when no published Blob content changed, which reduces read/write usage over the month.
 
 ## 💰 Pricing
 Vercel Blob Storage pricing (as of 2024):

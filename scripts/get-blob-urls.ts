@@ -1,6 +1,6 @@
 import { list } from '@vercel/blob';
 import { config } from 'dotenv';
-import { writeFileSync, readFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { join } from 'path';
 
 config({ path: '.env.local' });
@@ -22,8 +22,7 @@ async function getBlobUrls() {
     const urlMapping: Record<string, string> = {};
 
     blobs.forEach(blob => {
-      // Only match Yahoo Finance JSONs (adjust pattern if needed)
-      const match = blob.pathname.match(/bubble_data_(.+)_yahoo\.json$/);
+      const match = blob.pathname.match(/^bubble_data_([^_]+(?:_[^_]+)*)_splitadj_/);
       if (match) {
         const stockCode = match[1];
         urlMapping[stockCode] = blob.url;
@@ -34,17 +33,6 @@ async function getBlobUrls() {
     const mappingPath = join(process.cwd(), 'blob_mapping.json');
     writeFileSync(mappingPath, JSON.stringify(urlMapping, null, 2));
     console.log(`💾 Saved URL mapping to ${mappingPath}`);
-
-    // Update dataLoader.ts automatically
-    const dataLoaderPath = join(process.cwd(), 'src', 'utils', 'dataLoader.ts');
-    let content = readFileSync(dataLoaderPath, 'utf-8');
-
-    const blobUrlsRegex = /const BLOB_URLS: Record<StockCode, string> = \{[\s\S]*?\};/;
-    const newBlobUrls = `const BLOB_URLS: Record<StockCode, string> = ${JSON.stringify(urlMapping, null, 2)};`;
-
-    content = content.replace(blobUrlsRegex, newBlobUrls);
-    writeFileSync(dataLoaderPath, content, 'utf-8');
-    console.log(`✅ Updated BLOB_URLS in ${dataLoaderPath}`);
 
     return urlMapping;
   } catch (error) {

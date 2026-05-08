@@ -67,9 +67,20 @@ def main():
             data_file  = f"{csv_dir}/optout_{stockcode}.csv"
             count_file = f"{csv_dir}/optout_{stockcode}_count.csv"
 
-            # ⬇️  Pull CSVs from Vercel Blob onto the runner before processing
-            data_ok  = download_csv_from_blob(f"csv/optout_{stockcode}.csv",       data_file)
-            count_ok = download_csv_from_blob(f"csv/optout_{stockcode}_count.csv", count_file)
+            # Prefer job artifacts when they are already present locally.
+            # Fall back to Blob when running this script independently.
+            data_ok = os.path.exists(data_file)
+            count_ok = os.path.exists(count_file)
+
+            if data_ok:
+                print(f"📦 Using local artifact for {data_file}")
+            else:
+                data_ok = download_csv_from_blob(f"csv/optout_{stockcode}.csv", data_file)
+
+            if count_ok:
+                print(f"📦 Using local artifact for {count_file}")
+            else:
+                count_ok = download_csv_from_blob(f"csv/optout_{stockcode}_count.csv", count_file)
 
             if not data_ok or not count_ok:
                 print(f"⏭️  Skipping {stockcode} — one or both CSV files missing in Blob.\n")
