@@ -80,7 +80,6 @@ Stockcode = [
     "BAC",
     "C",
     "MSFT",
-    "FB",
     "GE",
     "INTC",
     "CSCO",
@@ -192,6 +191,10 @@ for ticker_symbol in Stockcode:
             print(f"Fetched options data for expiration date: {expiration_date}")
         except Exception as e:
             print(f"Error fetching options data for {expiration_date}: {e}")
+
+    if all_options.empty:
+        print(f"⏭️  No option chains returned for {ticker_symbol}; skipping ticker.")
+        continue
 
     all_options = all_options.rename(columns={'lastTradeDate': 'date'})
     all_options = all_options[['date', 'exdate', 'cp_flag', 'strike', 'bid', 'ask',
