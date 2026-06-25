@@ -89,6 +89,11 @@ jobs:
           curl -fsSL https://bun.sh/install | bash
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
+      - name: Install Bun dependencies
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install --frozen-lockfile
+
       - name: Upload new JSONs to Vercel Blob & update mapping
         id: upload_blob
         run: |

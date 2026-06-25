@@ -328,13 +328,10 @@ for ticker_symbol in Stockcode:
     indexopt3.columns = ['dateraw', 'cp_flag', 'exdateraw', 'tauday', 'x', 's', 'tr',
                          'money', 'oprice', 'volume', 'iv', 'deltachk']
 
-    optcount = indexopt3.groupby('dateraw').size().reset_index(name='count')
-    optcount['dateraw'] = pd.to_datetime(optcount['dateraw'], errors='coerce').dt.strftime('%d%b%Y')
-
     today_str = datetime.now(eastern).strftime('%d%b%Y')
     print(indexopt3.tail(5))
     indexopt3 = indexopt3[indexopt3['dateraw'] == today_str]
-    optcount  = optcount[optcount['dateraw'] == today_str]
+    optcount = indexopt3.groupby('dateraw').size().reset_index(name='count')
 
     expected_count = optcount['count'].sum()
     actual_count   = indexopt3.shape[0]
