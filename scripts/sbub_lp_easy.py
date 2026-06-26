@@ -8,6 +8,14 @@ from lpoly2 import lpoly2
 from nw_cov import nw_cov
 from datetime import datetime
 
+DEBUG = os.getenv("SBUB_DEBUG") == "1"
+
+
+def debug_print(*args, **kwargs):
+    if DEBUG:
+        print(*args, **kwargs)
+
+
 def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
     # --- settings &  warnings off ---
     warnings.filterwarnings("ignore", message="Python:nearlySingularMatrix")
@@ -306,21 +314,27 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
             for i in range(nxc-1, 0, -1):
                 if qcdfc[i] == 0:
                     qcdfc[i-1]  = 0
-                    print(f"[t={t}, j={j}] qcdfc before zeroing: {qcdfc}")
-                    print(f"[t={t}, j={j}] qcdfc_se_pt before zeroing: {qcdfc_se_pt}")
-                    if np.any(qcdfc_se_pt != 0):
-                        print("[t={}, j={}] NONZERO qcdfc_se_pt detected: {}".format(t, j, qcdfc_se_pt))
+                    if DEBUG:
+                        print(f"[t={t}, j={j}] qcdfc before zeroing: {qcdfc}")
+                        print(f"[t={t}, j={j}] qcdfc_se_pt before zeroing: {qcdfc_se_pt}")
+                        if np.any(qcdfc_se_pt != 0):
+                            print("[t={}, j={}] NONZERO qcdfc_se_pt detected: {}".format(t, j, qcdfc_se_pt))
 
             for i in range(nxc):
                 if qcdfc[i] == 0 or qcdfc[i] == 1 or qcdfc_se_pt[i] > 1:
                     qcdfc_se_pt[i] = 0
-                    print(f"[t={t}, j={j}] qcdfc_se_pt after zeroing: {qcdfc_se_pt}")
+                    if DEBUG:
+                        print(f"[t={t}, j={j}] qcdfc_se_pt after zeroing: {qcdfc_se_pt}")
 
 
             qcdfc_range = np.max(qcdfc) - np.min(qcdfc)
             dqcdfc = np.diff(qcdfc)
-            print(f"  → tau‐group {j}: qcdfc_range={qcdfc_range:.4f}, max(dqcdfc)={np.nanmax(dqcdfc):.4f} "
-            f"(thresholds minrange={minrange}, maxcdfjump={maxcdfjump})")
+            if DEBUG:
+                print(
+                    f"  → tau‐group {j}: qcdfc_range={qcdfc_range:.4f}, "
+                    f"max(dqcdfc)={np.nanmax(dqcdfc):.4f} "
+                    f"(thresholds minrange={minrange}, maxcdfjump={maxcdfjump})"
+                )
 
             if qcdfc_range > minrange and np.max(dqcdfc) < maxcdfjump:
                 qcdfc_norm = (qcdfc - np.min(qcdfc)) / qcdfc_range
@@ -335,14 +349,16 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
                 nw_cov_result = nw_cov(qcdfc_pt, mc)
                 total_variance = qcdfc_norm_se_pt_squared_sum + 2 * nw_cov_result
 
-                print("qcdfc_norm_se_pt_squared_sum:", qcdfc_norm_se_pt_squared_sum)
-                print("nw_cov_result:", nw_cov_result)
-                print("total_variance (value inside sqrt):", total_variance)
+                if DEBUG:
+                    print("qcdfc_norm_se_pt_squared_sum:", qcdfc_norm_se_pt_squared_sum)
+                    print("nw_cov_result:", nw_cov_result)
+                    print("total_variance (value inside sqrt):", total_variance)
                 # Safety check to avoid NaNs
                 if total_variance < 0:
                     total_variance = 0.0   # clamp tiny negatives
                 qcdfc_se = np.sqrt(total_variance)
-                print(f"[t={t}, j={j}] qcdfc_se (just calculated) = {qcdfc_se}")
+                if DEBUG:
+                    print(f"[t={t}, j={j}] qcdfc_se (just calculated) = {qcdfc_se}")
 
 
             else:
@@ -455,7 +471,8 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
 
             sbub_qcdfp_se[t, j] = qcdfp_se
             sbub_qcdfc_se[t, j] = qcdfc_se
-            print(f"[t={t}, j={j}] sbub_qcdfc_se[t, j] (assigned) = {sbub_qcdfc_se[t, j]}")
+            if DEBUG:
+                print(f"[t={t}, j={j}] sbub_qcdfc_se[t, j] (assigned) = {sbub_qcdfc_se[t, j]}")
             sbub_qcdf_se[t, j] = qcdf_se
 
             qcdfp_lb[t, j] = np.min(qcdfp)
@@ -549,7 +566,8 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
     dataout['tau'] = tau
     dataout['tr'] = tr
     dataout['da'] = da
-    print("sbub_qcdfc_se array at end:", sbub_qcdfc_se)
+    if DEBUG:
+        print("sbub_qcdfc_se array at end:", sbub_qcdfc_se)
 
 
     return bubout, dataout, setout
