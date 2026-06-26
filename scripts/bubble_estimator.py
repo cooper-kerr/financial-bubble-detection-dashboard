@@ -157,8 +157,9 @@ def process_stock(stockcode):
 
     nperiod = int(setout['nperiod'])
 
-    # Split-adjusted data.
+    # Split-adjusted and raw price data.
     sout = adjout['sout_adj']
+    raw_sout = np.asarray(dataout['sout'], dtype=float)
 
     # Set thresholds.
     qmax, semax = 1000, 1000
@@ -355,7 +356,8 @@ def process_stock(stockcode):
             time_point = {
                 "date": date_obj.isoformat() + "T00:00:00",
                 "stock_prices": {
-                    "adjusted": float(sout[t]) if not np.isnan(sout[t]) else 0.0
+                    "adjusted": float(sout[t]) if not np.isnan(sout[t]) else 0.0,
+                    "regular": float(raw_sout[t]) if not np.isnan(raw_sout[t]) else 0.0
                 },
                 "bubble_estimates": {
                     "daily_grouped": daily_grouped

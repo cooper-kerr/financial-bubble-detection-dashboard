@@ -13,7 +13,8 @@
     "check": "biome check",
     "upload-data": "tsx scripts/upload-to-blob.ts",
     "get-blob-urls": "tsx scripts/get-blob-urls.ts",
-    "test-blob": "tsx scripts/test-blob-fetch.ts"
+    "test-blob": "tsx scripts/test-blob-fetch.ts",
+    "validate-yahoo-pipeline": "tsx scripts/validate-yahoo-pipeline.ts"
   },
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.1.15",

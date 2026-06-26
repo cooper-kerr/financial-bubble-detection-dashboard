@@ -8,13 +8,17 @@ import type {
 	RegularPriceData,
 	StockCode,
 } from "../types/bubbleData";
+import { YAHOO_STOCK_LIST } from "../types/bubbleData";
 import {
 	calculatePriceDifferences,
 	getDateRange,
+	getEmbeddedRegularPriceData,
 	loadBubbleData,
 	loadRegularPriceData,
 	transformDataForChart,
 } from "../utils/dataLoader";
+
+const YAHOO_STOCK_SET = new Set<StockCode>(YAHOO_STOCK_LIST);
 
 interface DashboardState {
 	selectedStock: StockCode;
@@ -54,7 +58,9 @@ export function useDashboardData() {
 				// Load both bubble data and regular price data in parallel
 				const [data, regularData] = await Promise.allSettled([
 					loadBubbleData(state.selectedStock, state.dataSource),
-					loadRegularPriceData(state.selectedStock),
+					state.dataSource === "Yahoo Finance"
+						? Promise.resolve(null)
+						: loadRegularPriceData(state.selectedStock),
 				]);
 
 				// Check if component is still mounted and request is still valid
@@ -75,7 +81,11 @@ export function useDashboardData() {
 
 				// Handle regular price data result (optional, don't fail if not available)
 				const regularPriceData =
-					regularData.status === "fulfilled" ? regularData.value : null;
+					state.dataSource === "Yahoo Finance"
+						? getEmbeddedRegularPriceData(data.value)
+						: regularData.status === "fulfilled"
+							? regularData.value
+							: null;
 				if (regularData.status === "rejected") {
 					console.error(
 						`Regular price data failed to load for ${state.selectedStock}:`,
@@ -136,6 +146,11 @@ export function useDashboardData() {
 		setState((prev) => ({
 			...prev,
 			dataSource,
+			selectedStock:
+				dataSource === "Yahoo Finance" &&
+				!YAHOO_STOCK_SET.has(prev.selectedStock)
+					? "SPX"
+					: prev.selectedStock,
 			startDate: null,
 			endDate: null,
 		}));
