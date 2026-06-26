@@ -64,6 +64,35 @@ jobs:
           name: yahoo-csv-staging
           path: data/csv
 
+      - name: Validate CSV artifacts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          stocks = [
+              "SPX", "AAPL", "BAC", "C", "MSFT", "GE", "INTC", "CSCO", "BABA",
+              "WFC", "JPM", "AMD", "META", "F", "TSLA", "GOOG", "T", "XOM",
+              "AMZN", "MS", "NVDA", "AIG", "GM", "DIS", "BA",
+          ]
+          csv_dir = Path("data/csv")
+          missing = []
+          empty = []
+
+          for stock in stocks:
+              for suffix in ("", "_count"):
+                  path = csv_dir / f"optout_{stock}{suffix}.csv"
+                  if not path.exists():
+                      missing.append(str(path))
+                      continue
+                  if len(path.read_text().strip().splitlines()) <= 1:
+                      empty.append(str(path))
+
+          if missing or empty:
+              raise SystemExit(f"CSV validation failed. missing={missing} empty={empty}")
+
+          print(f"Validated CSV artifacts for {len(stocks)} Yahoo tickers")
+          PY
+
       - name: Run MAT generator
         # sbub_run.py prefers local CSV artifacts and falls back to Blob when needed.
         run: python scripts/sbub_run.py
@@ -77,6 +106,44 @@ jobs:
           mkdir -p public/data
           python scripts/bubble_estimator.py
           echo "📦 JSON files created in public/data"
+
+      - name: Validate generated Yahoo JSON
+        run: |
+          python - <<'PY'
+          import glob
+          import json
+          from pathlib import Path
+
+          stocks = [
+              "SPX", "AAPL", "BAC", "C", "MSFT", "GE", "INTC", "CSCO", "BABA",
+              "WFC", "JPM", "AMD", "META", "F", "TSLA", "GOOG", "T", "XOM",
+              "AMZN", "MS", "NVDA", "AIG", "GM", "DIS", "BA",
+          ]
+          data_dir = Path("public/data")
+
+          for stock in stocks:
+              matches = glob.glob(str(data_dir / f"bubble_data_{stock}_splitadj_*.json"))
+              if not matches:
+                  raise SystemExit(f"Missing generated JSON for {stock}")
+
+              with open(matches[0], "r", encoding="utf-8") as f:
+                  data = json.load(f)
+
+              points = data.get("time_series_data", [])
+              if data.get("metadata", {}).get("stockcode") != stock:
+                  raise SystemExit(f"Metadata stock mismatch for {stock}: {matches[0]}")
+              if not points:
+                  raise SystemExit(f"No time_series_data for {stock}: {matches[0]}")
+
+              for index, point in enumerate(points):
+                  prices = point.get("stock_prices", {})
+                  if not isinstance(prices.get("adjusted"), (int, float)):
+                      raise SystemExit(f"Missing adjusted price for {stock} point {index}")
+                  if not isinstance(prices.get("regular"), (int, float)):
+                      raise SystemExit(f"Missing regular price for {stock} point {index}")
+
+          print(f"Validated generated JSON for {len(stocks)} Yahoo tickers")
+          PY
 
       - name: Upload JSON files as artifacts
         uses: actions/upload-artifact@v4
@@ -101,6 +168,13 @@ jobs:
           bun run scripts/update-blob-urls.ts
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+
+      - name: Validate live Yahoo Blob mapping
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run validate-yahoo-pipeline -- --blob
+        env:
           BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
 
       - name: Trigger Vercel Redeploy

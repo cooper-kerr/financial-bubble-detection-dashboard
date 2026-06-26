@@ -102,6 +102,34 @@ export const STOCK_LIST = [
 
 export type StockCode = (typeof STOCK_LIST)[number];
 
+export const YAHOO_STOCK_LIST = [
+	"SPX",
+	"AAPL",
+	"BAC",
+	"C",
+	"MSFT",
+	"GE",
+	"INTC",
+	"CSCO",
+	"BABA",
+	"WFC",
+	"JPM",
+	"AMD",
+	"META",
+	"F",
+	"TSLA",
+	"GOOG",
+	"T",
+	"XOM",
+	"AMZN",
+	"MS",
+	"NVDA",
+	"AIG",
+	"GM",
+	"DIS",
+	"BA",
+] as const satisfies readonly StockCode[];
+
 export type DataSource = "WRDS" | "Yahoo Finance";
 
 export const TAU_COLORS = {

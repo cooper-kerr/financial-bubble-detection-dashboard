@@ -22,6 +22,7 @@ const JSON_OUTPUT_DIR = join(process.cwd(), "public", "data");
 const HASH_MANIFEST_BLOB_NAME = "blob_hash_manifest.json";
 const HASH_MANIFEST_URL = `${BLOB_BASE_URL}/${HASH_MANIFEST_BLOB_NAME}`;
 const BLOB_MAPPING_URL = `${BLOB_BASE_URL}/blob_mapping.json`;
+const NORMALIZED_BLOB_BASE_URL = BLOB_BASE_URL.replace(/\/+$/, "");
 
 function sha256(content: Buffer): string {
   return createHash("sha256").update(content).digest("hex");
@@ -49,6 +50,15 @@ function setGithubOutput(name: string, value: string) {
     return;
   }
   appendFileSync(githubOutputPath, `${name}=${value}\n`);
+}
+
+function assertBlobUrlMatchesConfiguredStore(url: string, filename: string) {
+  if (!url.startsWith(`${NORMALIZED_BLOB_BASE_URL}/`)) {
+    throw new Error(
+      `${filename} uploaded to ${url}, but BLOB_BASE_URL is ${NORMALIZED_BLOB_BASE_URL}. ` +
+      "The Blob token and BLOB_BASE_URL secret are pointing at different stores.",
+    );
+  }
 }
 
 async function updateBlobUrls() {
@@ -98,6 +108,7 @@ async function updateBlobUrls() {
         allowOverwrite: true,
         contentType: "application/json",
       });
+      assertBlobUrlMatchesConfiguredStore(blob.url, filename);
 
       changedUploads += 1;
       if (urlMapping[stock] !== blob.url) {
@@ -147,6 +158,7 @@ async function updateBlobUrls() {
       allowOverwrite: true,
       contentType: "application/json",
     });
+    assertBlobUrlMatchesConfiguredStore(mappingBlob.url, "blob_mapping.json");
 
     console.log(`✅ Uploaded blob_mapping.json to Blob → ${mappingBlob.url}`);
 
@@ -157,6 +169,7 @@ async function updateBlobUrls() {
       allowOverwrite: true,
       contentType: "application/json",
     });
+    assertBlobUrlMatchesConfiguredStore(hashManifestBlob.url, HASH_MANIFEST_BLOB_NAME);
 
     console.log(`✅ Uploaded ${HASH_MANIFEST_BLOB_NAME} to Blob → ${hashManifestBlob.url}`);
 
