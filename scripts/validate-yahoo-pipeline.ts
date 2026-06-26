@@ -5,6 +5,8 @@ import { YAHOO_STOCK_LIST } from "../src/types/bubbleData";
 import type { BubbleData } from "../src/types/bubbleData";
 
 type Mode = "csv" | "json" | "blob";
+const BLOB_VALIDATION_ATTEMPTS = 6;
+const BLOB_VALIDATION_DELAY_MS = 10_000;
 
 const args = new Set(process.argv.slice(2));
 const modes: Mode[] = args.size
@@ -24,6 +26,16 @@ function assert(condition: unknown, message: string): asserts condition {
 
 function readJson(path: string): BubbleData {
 	return JSON.parse(readFileSync(path, "utf8")) as BubbleData;
+}
+
+function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withCacheBuster(url: string) {
+	const parsedUrl = new URL(url);
+	parsedUrl.searchParams.set("validate_ts", `${Date.now()}`);
+	return parsedUrl.toString();
 }
 
 function validateBubbleData(stock: string, data: BubbleData, source: string) {
@@ -86,26 +98,52 @@ async function validateBlobMapping() {
 		envMappingUrl ||
 		(envBaseUrl ? `${envBaseUrl}/blob_mapping.json` : DEFAULT_YAHOO_BLOB_MAPPING_URL);
 
-	const mappingResponse = await fetch(mappingUrl);
-	assert(
-		mappingResponse.ok,
-		`Failed to fetch Yahoo blob mapping ${mappingUrl}: ${mappingResponse.status} ${mappingResponse.statusText}`,
-	);
-	const mapping = (await mappingResponse.json()) as Record<string, string>;
+	let lastError: unknown;
 
-	for (const stock of YAHOO_STOCK_LIST) {
-		const url = mapping[stock];
-		assert(url, `Yahoo blob mapping is missing ${stock}`);
+	for (let attempt = 1; attempt <= BLOB_VALIDATION_ATTEMPTS; attempt++) {
+		try {
+			const mappingResponse = await fetch(withCacheBuster(mappingUrl), {
+				cache: "no-store",
+			});
+			assert(
+				mappingResponse.ok,
+				`Failed to fetch Yahoo blob mapping ${mappingUrl}: ${mappingResponse.status} ${mappingResponse.statusText}`,
+			);
+			const mapping = (await mappingResponse.json()) as Record<string, string>;
 
-		const response = await fetch(url);
-		assert(
-			response.ok,
-			`Failed to fetch mapped Yahoo JSON for ${stock}: ${response.status} ${response.statusText}`,
-		);
-		validateBubbleData(stock, (await response.json()) as BubbleData, url);
+			for (const stock of YAHOO_STOCK_LIST) {
+				const url = mapping[stock];
+				assert(url, `Yahoo blob mapping is missing ${stock}`);
+
+				const response = await fetch(withCacheBuster(url), {
+					cache: "no-store",
+				});
+				assert(
+					response.ok,
+					`Failed to fetch mapped Yahoo JSON for ${stock}: ${response.status} ${response.statusText}`,
+				);
+				validateBubbleData(stock, (await response.json()) as BubbleData, url);
+			}
+
+			console.log(`✅ Live Yahoo Blob mapping validated at ${mappingUrl}`);
+			return;
+		} catch (error) {
+			lastError = error;
+			if (attempt === BLOB_VALIDATION_ATTEMPTS) {
+				break;
+			}
+			console.warn(
+				`⚠️ Live Yahoo Blob validation attempt ${attempt}/${BLOB_VALIDATION_ATTEMPTS} failed; retrying in ${BLOB_VALIDATION_DELAY_MS / 1000}s.`,
+			);
+			await sleep(BLOB_VALIDATION_DELAY_MS);
+		}
 	}
 
-	console.log(`✅ Live Yahoo Blob mapping validated at ${mappingUrl}`);
+	fail(
+		lastError instanceof Error
+			? lastError.message
+			: `Live Yahoo Blob mapping validation failed: ${String(lastError)}`,
+	);
 }
 
 if (modes.includes("csv")) {
