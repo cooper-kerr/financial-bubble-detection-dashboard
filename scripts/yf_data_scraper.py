@@ -10,6 +10,7 @@ from scipy.stats import norm
 import pytz
 import time
 import requests
+from yahoo_csv_utils import merge_sort_option_data, rebuild_count_frame
 
 # ---------------------------------------------------------------------------
 # Vercel Blob configuration
@@ -17,10 +18,10 @@ import requests
 BLOB_BASE_URL = os.getenv("BLOB_BASE_URL")          # public base URL of your Blob store
 BLOB_TOKEN    = os.getenv("BLOB_READ_WRITE_TOKEN")   # read/write token stored in GitHub secrets
 
-def download_csv_from_blob(blob_path: str, local_path: str) -> None:
+def download_csv_from_blob(blob_path: str, local_path: str) -> bool:
     """
     Download a CSV from Vercel Blob to a local runner path.
-    Silently skips if the file does not exist yet (first-ever run for that ticker).
+    Returns True when the CSV was downloaded.
     """
     if not BLOB_BASE_URL:
         raise EnvironmentError("BLOB_BASE_URL environment variable is not set.")
@@ -32,10 +33,14 @@ def download_csv_from_blob(blob_path: str, local_path: str) -> None:
             with open(local_path, "wb") as f:
                 f.write(r.content)
             print(f"⬇️  Downloaded {blob_path} from Blob.")
+            return True
+        elif r.status_code == 404:
+            print(f"⚠️  {blob_path} not found in Blob (status {r.status_code}).")
+            return False
         else:
-            print(f"⚠️  {blob_path} not found in Blob (status {r.status_code}) — will create fresh.")
+            raise RuntimeError(f"Unexpected status {r.status_code} fetching {blob_path}: {r.text}")
     except Exception as e:
-        print(f"⚠️  Could not download {blob_path}: {e} — will create fresh.")
+        raise RuntimeError(f"Could not download {blob_path}: {e}") from e
 
 
 def upload_csv_to_blob(local_path: str, blob_path: str) -> None:
@@ -349,34 +354,29 @@ for ticker_symbol in Stockcode:
     count_file = os.path.join(save_folder, f"{filesource}_count.csv")
     data_file  = os.path.join(save_folder, f"{filesource}.csv")
 
-    # ⬇️  Pull existing CSVs from Vercel Blob so we can append today's rows
-    download_csv_from_blob(f"csv/{filesource}_count.csv", count_file)
-    download_csv_from_blob(f"csv/{filesource}.csv",       data_file)
+    # ⬇️  Pull the existing main CSV from Vercel Blob so we can append today's rows.
+    # Count CSVs are derived locally and handed to the next workflow job as artifacts.
+    if not os.path.exists(data_file):
+        data_ok = download_csv_from_blob(f"csv/{filesource}.csv", data_file)
+        if not data_ok:
+            raise FileNotFoundError(
+                f"Missing historical CSV for {ticker_symbol}: csv/{filesource}.csv. "
+                "The daily pipeline requires Vercel Blob history and will not rebuild from only today's scrape."
+            )
+    else:
+        print(f"📦 Using local artifact for {data_file}")
 
-    # ---- Append logic (unchanged) ----
-    count_hash_before = file_sha256(count_file)
     data_hash_before = file_sha256(data_file)
 
-    if os.path.exists(count_file):
-        existing_count = pd.read_csv(count_file)
-        optcount = pd.concat([existing_count, optcount], ignore_index=True)
-        optcount.drop_duplicates(subset=["dateraw"], keep="last", inplace=True)
+    existing_data = pd.read_csv(data_file)
+    indexopt3 = merge_sort_option_data(existing_data, indexopt3)
+    optcount = rebuild_count_frame(indexopt3)
+    indexopt3.to_csv(data_file, index=False)
     optcount.to_csv(count_file, index=False)
 
-    if os.path.exists(data_file):
-        existing_data = pd.read_csv(data_file)
-        indexopt3 = pd.concat([existing_data, indexopt3], ignore_index=True)
-        indexopt3.drop_duplicates(subset=["dateraw", "cp_flag", "tauday", "x"], keep="last", inplace=True)
-    indexopt3.to_csv(data_file, index=False)
-
-    # ⬆️  Push updated CSVs back to Vercel Blob only if content actually changed.
-    count_hash_after = file_sha256(count_file)
+    # ⬆️  Push updated main CSV back to Vercel Blob only if content actually changed.
+    # The derived count CSV remains local and is uploaded only as a GitHub Actions artifact.
     data_hash_after = file_sha256(data_file)
-
-    if count_hash_before != count_hash_after:
-        upload_csv_to_blob(count_file, f"csv/{filesource}_count.csv")
-    else:
-        print(f"⏭️  No changes detected for csv/{filesource}_count.csv; skipping Blob upload.")
 
     if data_hash_before != data_hash_after:
         upload_csv_to_blob(data_file,  f"csv/{filesource}.csv")

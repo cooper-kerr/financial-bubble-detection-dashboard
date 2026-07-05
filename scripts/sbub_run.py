@@ -6,6 +6,7 @@ from scipy.io import savemat
 from sbub_lp_easy import sbub_lp_easy
 from sbub_split import sbub_split
 import requests
+from yahoo_csv_utils import rebuild_count_csv
 
 # ---------------------------------------------------------------------------
 # Vercel Blob configuration
@@ -68,7 +69,7 @@ def main():
             count_file = f"{csv_dir}/optout_{stockcode}_count.csv"
 
             # Prefer job artifacts when they are already present locally.
-            # Fall back to Blob when running this script independently.
+            # Fall back to the main Blob CSV when running this script independently.
             data_ok = os.path.exists(data_file)
             count_ok = os.path.exists(count_file)
 
@@ -79,11 +80,12 @@ def main():
 
             if count_ok:
                 print(f"📦 Using local artifact for {count_file}")
+            elif data_ok:
+                rebuild_count_csv(data_file, count_file)
+                count_ok = True
+                print(f"🔁 Rebuilt derived count CSV for {stockcode}: {count_file}")
             else:
-                count_ok = download_csv_from_blob(f"csv/optout_{stockcode}_count.csv", count_file)
-
-            if not data_ok or not count_ok:
-                print(f"⏭️  Skipping {stockcode} — one or both CSV files missing in Blob.\n")
+                print(f"⏭️  Skipping {stockcode} — main CSV missing in Blob.\n")
                 continue
 
             # ── Build MAT filenames ──

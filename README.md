@@ -44,7 +44,8 @@ Three time horizon groups are analyzed:
 ### Yahoo Finance API (2026 - Present)
 - **Stock Price Data**: Uses Yahoo Finance API
 - **Options Data**: Uses Yahoo Finance API
-- **Dashboard**: Seperate section on dashboard to show most recent bubble estimates using data from Yahoo Finance
+- **Dashboard**: Separate section on dashboard to show most recent bubble estimates using data from Yahoo Finance
+- **Storage**: Vercel Blob is the durable store for historical Yahoo main CSVs (`csv/optout_<TICKER>.csv`) and published runtime JSON files. Derived `*_count.csv` files are rebuilt from the main CSV during the workflow and kept only as temporary GitHub Actions artifacts.
 
 
 
@@ -137,17 +138,17 @@ financial-bubble-detection-dashboard/
 │   ├── upload-to-blob.ts        # Upload data to Vercel Blob Storage
 │   ├── get-blob-urls.ts         # Retrieve blob URLs
 │   ├── test-blob-fetch.ts       # Test blob connectivity
-│   └── yf_data_scraper.py       # Scrape YF options data, and append local CSV's
+│   └── yf_data_scraper.py       # Scrape YF options data, append Blob-backed CSVs
 │   └── sbub_run.py              # Run .mat generation 
 │   └── bubble_estimator.py      # Create YF .json files
 ├── docs/                        # Documentation
 │   └── plotly-tooltip-customization-guide.md
 ├── public/                      # Static assets
-│   └── data/                    # Holds local Copies of YF .json files 
+│   └── data/                    # Generated Yahoo JSON output before Blob upload
 │   └── *.png, *.ico, etc.       # Images and icons
 ├── .github/workflows/
 │   └── main.yml                 # Workflow for updating YF points on Dashboard
-├── data/csv/                    # Holds local copies of YF csv options data
+├── data/csv/                    # Generated CSV staging artifacts, ignored by git
 ├── dist/                        # Production build output
 ├── package.json                 # Dependencies and scripts
 ├── vite.config.ts               # Vite configuration
@@ -188,6 +189,7 @@ The dashboard supports analysis for the following assets:
 - **Efficient Loading**: Optimized data fetching with error handling and loading states
 - **Data Processing**: Real-time transformation of bubble estimates and price data
 - **Caching Strategy**: Smart data caching to minimize API calls
+- **Generated Artifacts**: Yahoo CSV staging files, derived count CSVs, generated JSONs, and local `blob_mapping.json` are ignored by git. The nightly workflow recreates them from Blob-backed inputs and uploads changed runtime JSONs back to Blob.
 
 ### User Interface
 
@@ -221,6 +223,7 @@ bun run check        # Run both lint and format checks
 bun run upload-data  # Upload JSON files to Vercel Blob Storage
 bun run get-blob-urls # Retrieve current blob URLs
 bun run test-blob    # Test blob storage connectivity
+npm run validate-yahoo-pipeline -- --json # Validate generated local Yahoo JSONs
 ```
 
 ### Development Workflow
@@ -259,6 +262,15 @@ bun run test-blob    # Test blob storage connectivity
 
 - **Cloud Storage**: Vercel Blob Storage for production data
 - **Data Processing**: Custom utilities for bubble estimate calculations
+
+### Nightly Yahoo Pipeline
+
+The scheduled workflow starts from code plus Blob-backed data, not checked-in generated files:
+
+1. `scripts/yf_data_scraper.py` downloads `csv/optout_<TICKER>.csv` from Vercel Blob, appends the latest Yahoo/FRED/options rows, deduplicates, sorts by parsed `dateraw` plus stable option columns, rebuilds `optout_<TICKER>_count.csv`, and uploads only the changed main CSV back to Blob.
+2. The workflow uploads both the main CSV and rebuilt count CSV as a temporary `yahoo-csv-staging` GitHub Actions artifact.
+3. `scripts/sbub_run.py` consumes those artifacts. For standalone local runs, it downloads only the main CSV from Blob and regenerates the missing count CSV locally.
+4. `scripts/bubble_estimator.py` writes generated JSONs to `public/data/`, and `scripts/update-blob-urls.ts` uploads changed JSONs plus `blob_mapping.json` and `blob_hash_manifest.json` to Vercel Blob.
 
 ### Deployment
 

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import requests
+from yahoo_csv_utils import rebuild_count_csv, sort_option_data
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -70,13 +71,7 @@ def read_git_csv(filename: str) -> pd.DataFrame | None:
 
 
 def normalize_dates(df: pd.DataFrame) -> pd.DataFrame:
-    normalized = df.copy()
-    normalized["_date_sort"] = pd.to_datetime(
-        normalized["dateraw"],
-        format="%d%b%Y",
-        errors="raise",
-    )
-    return normalized
+    return sort_option_data(df)
 
 
 def merge_by_date(
@@ -97,10 +92,7 @@ def merge_by_date(
     if not rows_by_date:
         raise ValueError("No rows found in any source")
 
-    merged = pd.concat(rows_by_date.values(), ignore_index=True)
-    merged = normalize_dates(merged)
-    merged = merged.sort_values("_date_sort", kind="stable").drop(columns=["_date_sort"])
-    return merged
+    return normalize_dates(pd.concat(rows_by_date.values(), ignore_index=True))
 
 
 def summarize(filename: str, df: pd.DataFrame) -> str:
@@ -115,15 +107,18 @@ def main() -> None:
     CSV_DIR.mkdir(parents=True, exist_ok=True)
 
     for ticker in YAHOO_TICKERS:
-        for suffix in ["", "_count"]:
-            filename = f"optout_{ticker}{suffix}.csv"
-            local_df = read_local_csv(filename)
-            blob_df = read_blob_csv(filename)
-            git_df = read_git_csv(filename)
+        filename = f"optout_{ticker}.csv"
+        local_df = read_local_csv(filename)
+        blob_df = read_blob_csv(filename)
+        git_df = read_git_csv(filename)
 
-            merged = merge_by_date(local_df, blob_df, git_df)
-            merged.to_csv(CSV_DIR / filename, index=False)
-            print(summarize(filename, merged))
+        merged = merge_by_date(local_df, blob_df, git_df)
+        data_path = CSV_DIR / filename
+        count_path = CSV_DIR / f"optout_{ticker}_count.csv"
+        merged.to_csv(data_path, index=False)
+        rebuild_count_csv(data_path, count_path)
+        print(summarize(filename, merged))
+        print(f"Rebuilt {count_path.name} from {filename}")
 
 
 if __name__ == "__main__":

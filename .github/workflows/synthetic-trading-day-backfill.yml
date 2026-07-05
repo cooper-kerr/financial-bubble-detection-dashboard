@@ -1,0 +1,137 @@
+name: Synthetic Trading-Day Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: Inclusive backfill start date
+        required: true
+        default: "2026-01-26"
+        type: string
+      end:
+        description: Exclusive backfill end date
+        required: true
+        default: "2026-07-03"
+        type: string
+      dry_run:
+        description: Generate and validate without writing/uploading
+        required: true
+        default: true
+        type: boolean
+      upload_blob:
+        description: Upload updated detail CSVs to production Vercel Blob
+        required: true
+        default: false
+        type: boolean
+      run_estimator_smoke:
+        description: Run reduced-grid estimator smoke test for SPX, AAPL, TSLA
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: synthetic-trading-day-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    name: Generate Synthetic CSV Backfill
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scipy requests
+
+      - name: Validate production upload inputs
+        if: ${{ inputs.upload_blob && inputs.dry_run }}
+        run: |
+          echo "upload_blob=true requires dry_run=false."
+          exit 1
+
+      - name: Run synthetic trading-day backfill
+        run: |
+          args=(
+            --source blob
+            --start "${{ inputs.start }}"
+            --end "${{ inputs.end }}"
+          )
+
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+
+          if [[ "${{ inputs.upload_blob }}" == "true" ]]; then
+            args+=(--upload-blob)
+          fi
+
+          python scripts/backfill_synthetic_csvs.py "${args[@]}"
+        env:
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+
+      - name: Summarize backfill report
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path("synthetic_backfill_report.json")
+          report = json.loads(report_path.read_text())
+          total_inserted = sum(row["inserted_rows"] for row in report)
+          total_dates = sorted({date for row in report for date in row["inserted_dates"]})
+
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as summary:
+              summary.write("## Synthetic trading-day backfill\n\n")
+              summary.write(f"- Tickers processed: {len(report)}\n")
+              summary.write(f"- Synthetic dates inserted: {len(total_dates)}\n")
+              summary.write(f"- Synthetic detail rows inserted: {total_inserted}\n")
+              summary.write(f"- Upload statuses: {sorted({row['upload_status'] for row in report})}\n")
+              summary.write("\n### Dates\n\n")
+              summary.write(", ".join(total_dates) + "\n")
+          PY
+
+      - name: Run reduced-grid estimator smoke test
+        if: ${{ inputs.run_estimator_smoke && !inputs.dry_run }}
+        timeout-minutes: 45
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "scripts")
+          from sbub_lp_easy import sbub_lp_easy
+
+          for ticker in ["SPX", "AAPL", "TSLA"]:
+              data = f"data/csv/optout_{ticker}.csv"
+              count = f"data/csv/optout_{ticker}_count.csv"
+              print(f"Running reduced-grid estimator smoke test for {ticker}", flush=True)
+              bubout, dataout, setout = sbub_lp_easy(data, count, "2025", "2026", 2, 20, 0, 5)
+              nperiod = int(setout["nperiod"])
+              if nperiod != 110:
+                  raise SystemExit(f"{ticker}: expected 110 periods, got {nperiod}")
+              if len(dataout["sout"]) != 110:
+                  raise SystemExit(f"{ticker}: expected 110 price observations, got {len(dataout['sout'])}")
+              print(f"{ticker}: estimator smoke test passed with nperiod={nperiod}", flush=True)
+          PY
+
+      - name: Upload backfill artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-trading-day-backfill
+          path: |
+            synthetic_backfill_report.json
+            synthetic_backfill_report.csv
+            data/csv/*.csv

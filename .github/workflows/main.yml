@@ -7,7 +7,7 @@ on:
 
 jobs:
   update-csvs:
-    name: Scrape & Upload CSVs to Blob
+    name: Scrape CSVs & Rebuild Counts
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,6 +26,8 @@ jobs:
           pip install pandas numpy yfinance scipy fredapi matplotlib requests
 
       - name: Run CSV scraper
+        # Downloads historical main CSVs from Blob, rebuilds derived count CSVs,
+        # and uploads only changed main CSVs back to Blob.
         run: python scripts/yf_data_scraper.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -94,7 +96,7 @@ jobs:
           PY
 
       - name: Run MAT generator
-        # sbub_run.py prefers local CSV artifacts and falls back to Blob when needed.
+        # sbub_run.py prefers local CSV artifacts and rebuilds count CSVs from main CSVs when needed.
         run: python scripts/sbub_run.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
