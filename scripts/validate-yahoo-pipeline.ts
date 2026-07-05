@@ -38,6 +38,15 @@ function withCacheBuster(url: string) {
 	return parsedUrl.toString();
 }
 
+function hasNonZeroEstimate(point: BubbleData["time_series_data"][number]) {
+	return point.bubble_estimates.daily_grouped.some((tauGroup) =>
+		(["put", "call", "combined"] as const).some((optionType) => {
+			const estimate = tauGroup[optionType];
+			return estimate.mu !== 0 || estimate.lb !== 0 || estimate.ub !== 0;
+		}),
+	);
+}
+
 function validateBubbleData(stock: string, data: BubbleData, source: string) {
 	assert(data.metadata?.stockcode === stock, `${source} metadata stock mismatch for ${stock}`);
 	assert(
@@ -61,6 +70,16 @@ function validateBubbleData(stock: string, data: BubbleData, source: string) {
 			`${source} point ${index} for ${stock} has incomplete tau groups`,
 		);
 	}
+
+	const rollingWindowDays = data.metadata?.rolling_window_days ?? 63;
+	const preFullWindowPoints = data.time_series_data.slice(
+		0,
+		Math.min(rollingWindowDays, data.time_series_data.length),
+	);
+	assert(
+		preFullWindowPoints.some(hasNonZeroEstimate),
+		`${source} has no non-zero estimates/CIs before the ${rollingWindowDays}-observation rolling window for ${stock}`,
+	);
 }
 
 function validateCsvArtifacts() {

@@ -244,18 +244,15 @@ def process_stock(stockcode):
                     sbubcdf_bc_lb[t, i, 2] = sbubcdf_bc_mu[t, i, 2] - nzmean(qcdf_A_ub[t, valid_gp])
 
     # --- Rolling-window averages ---
-   # --- Rolling-window averages ---
     rsbubcdf_mu    = np.zeros((nperiod, ntaugp, 3))
     rsbubcdf_se    = np.zeros((nperiod, ntaugp, 3))
     rsbubcdf_bc_mu = np.zeros((nperiod, ntaugp, 3))
     rsbubcdf_bc_lb = np.zeros((nperiod, ntaugp, 3))
     rsbubcdf_bc_ub = np.zeros((nperiod, ntaugp, 3))
-    
-    # Handle cases where we have fewer points than bubwin0
-    if len(ti) < bubwin0:
-        tii = ti  # just use all points available
-    else:
-        tii = ti[ti >= bubwin0]
+
+    # Use a partial rolling window before the full 63-observation window is available.
+    # Without this, pre-window Yahoo rows are exported as zero-valued estimates/CIs.
+    tii = ti
     
     mc = int(np.ceil(bubwin0 ** 0.25))
     
