@@ -1,0 +1,41 @@
+name: Publish Yahoo Blob JSON
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-yahoo-json:
+    name: Upload JSON to Blob and redeploy Vercel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate generated Yahoo JSON
+        run: bun run validate-yahoo-pipeline -- --json
+
+      - name: Upload JSON files to Vercel Blob and refresh mapping
+        id: upload_blob
+        run: bun run scripts/update-blob-urls.ts
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+
+      - name: Validate live Yahoo Blob mapping
+        run: bun run validate-yahoo-pipeline -- --blob
+        env:
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+
+      - name: Trigger Vercel redeploy
+        if: steps.upload_blob.outputs.blob_changed == 'true'
+        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
