@@ -55,28 +55,27 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy scipy requests
 
-      - name: Validate production upload inputs
-        if: ${{ inputs.upload_blob && inputs.dry_run }}
-        run: |
-          echo "upload_blob=true requires dry_run=false."
-          exit 1
-
       - name: Run synthetic trading-day backfill
         run: |
+          dry_run_input="${{ inputs.dry_run }}"
+          upload_blob_input="${{ inputs.upload_blob }}"
+          effective_mode="local_write_no_upload"
+
           args=(
             --source blob
             --start "${{ inputs.start }}"
             --end "${{ inputs.end }}"
           )
 
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            args+=(--dry-run)
-          fi
-
-          if [[ "${{ inputs.upload_blob }}" == "true" ]]; then
+          if [[ "$upload_blob_input" == "true" ]]; then
             args+=(--upload-blob)
+            effective_mode="production_upload"
+          elif [[ "$dry_run_input" == "true" ]]; then
+            args+=(--dry-run)
+            effective_mode="dry_run"
           fi
 
+          echo "Synthetic backfill effective mode: $effective_mode"
           python scripts/backfill_synthetic_csvs.py "${args[@]}"
         env:
           BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
@@ -105,7 +104,7 @@ jobs:
           PY
 
       - name: Run reduced-grid estimator smoke test
-        if: ${{ inputs.run_estimator_smoke && !inputs.dry_run }}
+        if: ${{ inputs.run_estimator_smoke && (inputs.upload_blob || !inputs.dry_run) }}
         timeout-minutes: 45
         run: |
           python - <<'PY'
