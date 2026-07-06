@@ -1,0 +1,220 @@
+name: Regenerate Synthetic Yahoo JSON
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: Inclusive synthetic trading-day start date
+        required: true
+        default: "2026-01-26"
+        type: string
+      end:
+        description: Exclusive synthetic trading-day end date
+        required: true
+        default: "2026-07-03"
+        type: string
+      ensure_csv_upload:
+        description: Re-validate and upload synthetic detail CSVs before regeneration
+        required: true
+        default: false
+        type: boolean
+      trigger_redeploy:
+        description: Trigger Vercel redeploy when regenerated JSON changed Blob content
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: regenerate-synthetic-yahoo-json
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    name: Rebuild MAT/JSON from Synthetic Blob CSVs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scipy matplotlib fredapi requests
+
+      - name: Ensure synthetic CSVs are uploaded to Blob
+        if: ${{ inputs.ensure_csv_upload }}
+        run: |
+          python scripts/backfill_synthetic_csvs.py \
+            --source blob \
+            --start "${{ inputs.start }}" \
+            --end "${{ inputs.end }}" \
+            --upload-blob
+        env:
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+
+      - name: Verify synthetic Blob CSV window
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import date, datetime
+          from io import StringIO
+
+          import pandas as pd
+          import requests
+
+          stocks = [
+              "SPX", "AAPL", "BAC", "C", "MSFT", "GE", "INTC", "CSCO", "BABA",
+              "WFC", "JPM", "AMD", "META", "F", "TSLA", "GOOG", "T", "XOM",
+              "AMZN", "MS", "NVDA", "AIG", "GM", "DIS", "BA",
+          ]
+          holidays = {
+              date(2026, 2, 16),
+              date(2026, 4, 3),
+              date(2026, 5, 25),
+              date(2026, 6, 19),
+              date(2026, 7, 3),
+          }
+          date_format = "%d%b%Y"
+
+          def parse_yyyy_mm_dd(value):
+              return datetime.strptime(value, "%Y-%m-%d").date()
+
+          def trading_days(start, end_exclusive):
+              return [
+                  current.date()
+                  for current in pd.date_range(start, end_exclusive - pd.Timedelta(days=1), freq="D")
+                  if current.weekday() < 5 and current.date() not in holidays
+              ]
+
+          base_url = os.environ["BLOB_BASE_URL"].rstrip("/")
+          start = parse_yyyy_mm_dd(os.environ["SYNTHETIC_START"])
+          end = parse_yyyy_mm_dd(os.environ["SYNTHETIC_END"])
+          expected = {day.strftime(date_format) for day in trading_days(start, end)}
+
+          if not expected:
+              raise SystemExit("No expected trading days were produced for the requested window")
+          if start == date(2026, 1, 26) and end == date(2026, 7, 3) and len(expected) != 110:
+              raise SystemExit(f"Expected 110 trading days for the default window, found {len(expected)}")
+
+          forbidden = "03Jul2026"
+          failures = []
+          for stock in stocks:
+              url = f"{base_url}/csv/optout_{stock}.csv"
+              response = requests.get(url, timeout=60)
+              if response.status_code != 200:
+                  failures.append(f"{stock}: fetch failed with HTTP {response.status_code}")
+                  continue
+
+              df = pd.read_csv(StringIO(response.text))
+              if df.empty:
+                  failures.append(f"{stock}: Blob CSV has no rows")
+                  continue
+              if "dateraw" not in df.columns:
+                  failures.append(f"{stock}: Blob CSV is missing dateraw")
+                  continue
+
+              actual = set(df["dateraw"].astype(str).unique().tolist())
+              missing = sorted(expected - actual)
+              if missing:
+                  failures.append(f"{stock}: missing expected dates {missing[:5]}")
+              if forbidden in actual:
+                  failures.append(f"{stock}: found forbidden observed-holiday date {forbidden}")
+
+          if failures:
+              raise SystemExit("Synthetic Blob CSV validation failed:\n" + "\n".join(failures))
+
+          print(f"Validated synthetic Blob CSV window for {len(stocks)} Yahoo tickers and {len(expected)} dates")
+          PY
+        env:
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+          SYNTHETIC_START: ${{ inputs.start }}
+          SYNTHETIC_END: ${{ inputs.end }}
+
+      - name: Run MAT generator
+        run: python scripts/sbub_run.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+
+      - name: Validate generated MAT files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          stocks = [
+              "SPX", "AAPL", "BAC", "C", "MSFT", "GE", "INTC", "CSCO", "BABA",
+              "WFC", "JPM", "AMD", "META", "F", "TSLA", "GOOG", "T", "XOM",
+              "AMZN", "MS", "NVDA", "AIG", "GM", "DIS", "BA",
+          ]
+          mat_dir = Path("data/mat")
+          missing = []
+
+          for stock in stocks:
+              reference = list(mat_dir.glob(f"optout_{stock}_*_h0_hsd5_nstep200.mat"))
+              reference = [path for path in reference if "_splitadj_" not in path.name]
+              split_adjusted = list(mat_dir.glob(f"optout_{stock}_*_splitadj_h0_hsd5_nstep200.mat"))
+              if not reference:
+                  missing.append(f"{stock}: reference MAT")
+              if not split_adjusted:
+                  missing.append(f"{stock}: split-adjusted MAT")
+
+          if missing:
+              raise SystemExit("MAT validation failed:\n" + "\n".join(missing))
+
+          print(f"Validated generated MAT files for {len(stocks)} Yahoo tickers")
+          PY
+
+      - name: Convert MAT into JSON files
+        run: |
+          mkdir -p public/data
+          rm -f public/data/bubble_data_*_splitadj_*.json
+          python scripts/bubble_estimator.py
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Bun dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate generated Yahoo JSON
+        run: bun run validate-yahoo-pipeline -- --json
+
+      - name: Upload MAT and JSON artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-yahoo-mat-json
+          path: |
+            data/mat/*.mat
+            public/data/*.json
+            synthetic_backfill_report.json
+            synthetic_backfill_report.csv
+
+      - name: Upload regenerated JSONs to Vercel Blob and update mapping
+        id: upload_blob
+        run: bun run scripts/update-blob-urls.ts
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+
+      - name: Validate live Yahoo Blob mapping
+        run: bun run validate-yahoo-pipeline -- --blob
+        env:
+          BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
+
+      - name: Trigger Vercel redeploy
+        if: ${{ inputs.trigger_redeploy && steps.upload_blob.outputs.blob_changed == 'true' }}
+        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
