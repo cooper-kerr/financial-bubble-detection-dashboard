@@ -81,15 +81,23 @@ const REGULAR_PRICE_URLS: Record<StockCode, string> = {
 const BLOB_MAPPING_URL = DEFAULT_YAHOO_BLOB_MAPPING_URL;
 
 let yahooUrlCache: Record<string, string> | null = null;
+let yahooUrlCacheTime = 0;
+const YAHOO_MAPPING_CACHE_MS = 60_000;
+
+function withCacheBuster(url: string): string {
+	const parsedUrl = new URL(url);
+	parsedUrl.searchParams.set("ts", `${Date.now()}`);
+	return parsedUrl.toString();
+}
 
 async function getYahooUrlMapping(): Promise<Record<string, string>> {
-	if (yahooUrlCache) return yahooUrlCache;
+	if (yahooUrlCache && Date.now() - yahooUrlCacheTime < YAHOO_MAPPING_CACHE_MS) {
+		return yahooUrlCache;
+	}
 
-	const response = await fetch(BLOB_MAPPING_URL, {
-		// Revalidate at most once per hour so the page picks up same-day updates
-		// without hammering Blob on every render
-		next: { revalidate: 3600 },
-	} as RequestInit);
+	const response = await fetch(withCacheBuster(BLOB_MAPPING_URL), {
+		cache: "no-store",
+	});
 
 	if (!response.ok) {
 		throw new Error(
@@ -98,6 +106,7 @@ async function getYahooUrlMapping(): Promise<Record<string, string>> {
 	}
 
 	yahooUrlCache = await response.json();
+	yahooUrlCacheTime = Date.now();
 	return yahooUrlCache as Record<string, string>;
 }
 
@@ -128,7 +137,10 @@ export async function loadBubbleData(
 			}
 		}
 
-		const response = await fetch(url);
+		const response = await fetch(
+			dataSource === "Yahoo Finance" ? withCacheBuster(url) : url,
+			dataSource === "Yahoo Finance" ? { cache: "no-store" } : undefined,
+		);
 		if (!response.ok) {
 			throw new Error(
 				`Failed to load data for ${stockCode} from ${dataSource}: ${response.statusText}`,
