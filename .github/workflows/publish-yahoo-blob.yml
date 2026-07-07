@@ -7,6 +7,11 @@ on:
         description: "Optional regenerate-synthetic-yahoo-json run ID to publish. Defaults to latest non-expired synthetic-yahoo-mat-json artifact."
         required: false
         type: string
+      force_redeploy:
+        description: "Trigger the Vercel redeploy hook even when Blob JSON content is unchanged."
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   publish-yahoo-json:
@@ -94,5 +99,5 @@ jobs:
           BLOB_BASE_URL: ${{ secrets.BLOB_BASE_URL }}
 
       - name: Trigger Vercel redeploy
-        if: steps.upload_blob.outputs.blob_changed == 'true'
+        if: ${{ inputs.force_redeploy || steps.upload_blob.outputs.blob_changed == 'true' }}
         run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
