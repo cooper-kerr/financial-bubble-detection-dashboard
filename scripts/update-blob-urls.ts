@@ -103,15 +103,16 @@ async function updateBlobUrls() {
 
       const stock = match[1];
       nextHashManifest[filename] = fileHash;
+      const blobName = contentAddressedJsonBlobName(filename, fileHash);
+      const expectedBlobUrl = `${NORMALIZED_BLOB_BASE_URL}/${blobName}`;
 
-      if (previousHashManifest[filename] === fileHash && urlMapping[stock]) {
+      if (previousHashManifest[filename] === fileHash && urlMapping[stock] === expectedBlobUrl) {
         console.log(`⏭️  No content change for ${filename}; reusing existing Blob URL.`);
         continue;
       }
 
       // Upload changed JSON under a content-addressed name so immediate live
       // validation and production clients never race stale cached overwrites.
-      const blobName = contentAddressedJsonBlobName(filename, fileHash);
       const blob = await put(blobName, fileContent, {
         access: "public",
         token: BLOB_READ_WRITE_TOKEN,

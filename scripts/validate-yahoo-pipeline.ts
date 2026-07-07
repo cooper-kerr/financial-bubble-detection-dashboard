@@ -23,7 +23,9 @@ function fail(message: string): never {
 }
 
 function assert(condition: unknown, message: string): asserts condition {
-	if (!condition) fail(message);
+	if (!condition) {
+		throw new Error(message);
+	}
 }
 
 function readJson(path: string): BubbleData {
@@ -231,12 +233,20 @@ async function validateBlobMapping() {
 	);
 }
 
-if (modes.includes("csv")) {
-	validateCsvArtifacts();
+async function main() {
+	if (modes.includes("csv")) {
+		validateCsvArtifacts();
+	}
+	if (modes.includes("json")) {
+		validateLocalJson();
+	}
+	if (modes.includes("blob")) {
+		await validateBlobMapping();
+	}
 }
-if (modes.includes("json")) {
-	validateLocalJson();
-}
-if (modes.includes("blob")) {
-	await validateBlobMapping();
+
+try {
+	await main();
+} catch (error) {
+	fail(error instanceof Error ? error.message : String(error));
 }
