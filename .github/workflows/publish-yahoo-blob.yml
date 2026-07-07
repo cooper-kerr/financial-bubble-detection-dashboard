@@ -54,6 +54,22 @@ jobs:
           github-token: ${{ github.token }}
           path: .
 
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scipy matplotlib yfinance
+
+      - name: Regenerate JSON with current price schema
+        run: |
+          mkdir -p public/data
+          rm -f public/data/bubble_data_*_splitadj_*.json
+          MPLCONFIGDIR=/tmp/matplotlib-cache python scripts/bubble_estimator.py
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
