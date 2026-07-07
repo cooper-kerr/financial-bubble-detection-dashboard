@@ -139,6 +139,9 @@ export async function loadBubbleData(
 		data.time_series_data.sort(
 			(a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
 		);
+		data.price_series_data?.sort(
+			(a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+		);
 		return data;
 	} catch (error) {
 		console.error(
@@ -291,6 +294,13 @@ export async function loadRegularPriceData(
 export function getEmbeddedRegularPriceData(
 	bubbleData: BubbleData,
 ): RegularPriceData[] | null {
+	if (bubbleData.price_series_data && bubbleData.price_series_data.length > 0) {
+		return bubbleData.price_series_data.map((point) => ({
+			date: point.date,
+			price: point.regular,
+		}));
+	}
+
 	const regularPriceData = bubbleData.time_series_data
 		.filter((point) => typeof point.stock_prices.regular === "number")
 		.map((point) => ({
@@ -307,6 +317,26 @@ export function calculatePriceDifferences(
 	startDate?: Date,
 	endDate?: Date,
 ): PriceDifferenceDataPoint[] {
+	if (bubbleData.price_series_data && bubbleData.price_series_data.length > 0) {
+		const filteredSeries = filterByDateRange(
+			bubbleData.price_series_data,
+			startDate,
+			endDate,
+		);
+
+		return filteredSeries.map((point) => {
+			const difference = point.adjusted - point.regular;
+			const percentageDifference = (difference / point.regular) * 100;
+			return {
+				date: point.date,
+				adjustedPrice: point.adjusted,
+				regularPrice: point.regular,
+				difference,
+				percentageDifference,
+			};
+		});
+	}
+
 	const regularPriceMap = new Map<string, number>();
 	for (const point of regularPriceData) {
 		const normalizedDate = point.date.split("T")[0];
@@ -346,4 +376,23 @@ export function calculatePriceDifferences(
 	}
 
 	return result;
+}
+
+function filterByDateRange<T extends { date: string }>(
+	data: T[],
+	startDate?: Date,
+	endDate?: Date,
+): T[] {
+	if (!startDate && !endDate) {
+		return data;
+	}
+
+	const startTime = startDate?.getTime();
+	const endTime = endDate?.getTime();
+	return data.filter((point) => {
+		const pointTime = new Date(point.date).getTime();
+		if (startTime && pointTime < startTime) return false;
+		if (endTime && pointTime > endTime) return false;
+		return true;
+	});
 }

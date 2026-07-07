@@ -9,6 +9,7 @@ import pandas as pd
 import json
 from pathlib import Path
 import glob
+import yfinance as yf
 
 # Point to the folder containing downloaded .mat files (from artifact)
 SCRIPT_DIR = Path(os.environ.get("MAT_ARTIFACT_DIR", "./data/mat")).resolve()
@@ -24,6 +25,10 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 stockcodelist = [ "SPX", "AAPL", "BAC", "C", "MSFT", "META", "GE", "INTC", "CSCO", "BABA",
                   "WFC", "JPM", "AMD", "F", "TSLA", "GOOG", "T", "XOM", "AMZN",
                   "MS", "NVDA", "AIG", "GM", "DIS", "BA"] 
+
+YAHOO_SYMBOL_MAP = {
+    "SPX": "^SPX",
+}
 
 # Helper functions (keeping all existing helper functions)
 def datenum(date_str, fmt='%d-%b-%Y'):
@@ -48,6 +53,69 @@ def nw_cov(q, m):
         cov_val += (1 - j / (m + 1)) * gam[j - 1]
     return cov_val
 
+def to_yahoo_symbol(symbol):
+    return YAHOO_SYMBOL_MAP.get(symbol, symbol)
+
+def finite_price(value):
+    if value is None or pd.isna(value):
+        return None
+    value = float(value)
+    return value if np.isfinite(value) else None
+
+def download_canonical_price_series(stockcode, start_date, end_date):
+    yahoo_symbol = to_yahoo_symbol(stockcode)
+    end_exclusive = (pd.to_datetime(end_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    print(f"Downloading canonical Yahoo prices for {stockcode} ({yahoo_symbol})...")
+
+    history = yf.download(
+        yahoo_symbol,
+        start=start_date,
+        end=end_exclusive,
+        auto_adjust=False,
+        actions=True,
+        progress=False,
+    )
+
+    if history.empty:
+        raise ValueError(f"Yahoo returned no daily price history for {stockcode}")
+
+    if isinstance(history.columns, pd.MultiIndex):
+        if yahoo_symbol in history.columns.get_level_values(-1):
+            history = history.xs(yahoo_symbol, axis=1, level=-1)
+        else:
+            history.columns = history.columns.get_level_values(0)
+
+    history = history.reset_index()
+    date_column = "Date" if "Date" in history.columns else history.columns[0]
+    if "Close" not in history.columns:
+        raise ValueError(f"Yahoo price history for {stockcode} is missing Close")
+
+    has_adj_close = "Adj Close" in history.columns
+    price_series = []
+    price_map = {}
+
+    for _, row in history.iterrows():
+        regular = finite_price(row.get("Close"))
+        adjusted = finite_price(row.get("Adj Close")) if has_adj_close else regular
+        if adjusted is None:
+            adjusted = regular
+        if regular is None or adjusted is None:
+            continue
+
+        date_str = pd.to_datetime(row[date_column]).strftime("%Y-%m-%d")
+        point = {
+            "date": date_str,
+            "regular": regular,
+            "adjusted": adjusted,
+        }
+        price_series.append(point)
+        price_map[date_str] = point
+
+    if not price_series:
+        raise ValueError(f"Yahoo price history for {stockcode} had no finite close prices")
+
+    return price_series, price_map
+
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
@@ -70,6 +138,11 @@ def process_stock(stockcode):
     yr1, yr2 = '2025', str(current_year)
     startday = f'01JAN{yr1}'
     endday   = f'31DEC{yr2}'
+    price_series_data, canonical_price_map = download_canonical_price_series(
+        stockcode,
+        f"{yr1}-01-01",
+        datetime.now().strftime("%Y-%m-%d"),
+    )
     nplots = 3
 
     scode, bubwin0, nstep, opth, hnumsd = stockcode, 63, 200, 0, 5
@@ -317,13 +390,20 @@ def process_stock(stockcode):
             "time_series_start_date": matlab_datenum_to_datetime(dab_numeric[ttr0[0]]).isoformat() if len(ttr0) > 0 else None,
             "time_series_end_date": matlab_datenum_to_datetime(dab_numeric[ttr0[-1]]).isoformat() if len(ttr0) > 0 else None
         },
-        "time_series_data": []
+        "time_series_data": [],
+        "price_series_data": price_series_data
     }
 
     # Build time series data in your requested format
     if len(ttr0) > 0:
         for idx, t in enumerate(ttr0):
             date_obj = matlab_datenum_to_datetime(dab_numeric[t])
+            date_key = date_obj.isoformat()
+            canonical_price = canonical_price_map.get(date_key)
+            if canonical_price is None:
+                raise ValueError(
+                    f"No canonical Yahoo close price for {stockcode} on bubble date {date_key}"
+                )
 
             # Create bubble estimates for this time point
             daily_grouped = []
@@ -353,8 +433,8 @@ def process_stock(stockcode):
             time_point = {
                 "date": date_obj.isoformat() + "T00:00:00",
                 "stock_prices": {
-                    "adjusted": float(sout[t]) if not np.isnan(sout[t]) else 0.0,
-                    "regular": float(raw_sout[t]) if not np.isnan(raw_sout[t]) else 0.0
+                    "adjusted": canonical_price["adjusted"],
+                    "regular": canonical_price["regular"]
                 },
                 "bubble_estimates": {
                     "daily_grouped": daily_grouped

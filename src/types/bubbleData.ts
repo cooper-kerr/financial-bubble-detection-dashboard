@@ -27,6 +27,12 @@ export interface TimeSeriesDataPoint {
 	};
 }
 
+export interface PriceSeriesDataPoint {
+	date: string;
+	regular: number;
+	adjusted: number;
+}
+
 export interface BubbleDataMetadata {
 	stockcode: string;
 	start_date_param: string;
@@ -44,6 +50,7 @@ export interface BubbleDataMetadata {
 export interface BubbleData {
 	metadata: BubbleDataMetadata;
 	time_series_data: TimeSeriesDataPoint[];
+	price_series_data?: PriceSeriesDataPoint[];
 }
 
 export type OptionType = "put" | "call" | "combined";

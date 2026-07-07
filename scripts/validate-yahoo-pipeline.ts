@@ -5,8 +5,10 @@ import { YAHOO_STOCK_LIST } from "../src/types/bubbleData";
 import type { BubbleData } from "../src/types/bubbleData";
 
 type Mode = "csv" | "json" | "blob";
+type PriceSeriesPoint = NonNullable<BubbleData["price_series_data"]>[number];
 const BLOB_VALIDATION_ATTEMPTS = 6;
 const BLOB_VALIDATION_DELAY_MS = 10_000;
+const MAX_ADJUSTED_DAILY_CHANGE = 0.25;
 
 const args = new Set(process.argv.slice(2));
 const modes: Mode[] = args.size
@@ -47,22 +49,78 @@ function hasNonZeroEstimate(point: BubbleData["time_series_data"][number]) {
 	);
 }
 
+function normalizeDate(date: string) {
+	return date.split("T")[0];
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value);
+}
+
 function validateBubbleData(stock: string, data: BubbleData, source: string) {
 	assert(data.metadata?.stockcode === stock, `${source} metadata stock mismatch for ${stock}`);
 	assert(
 		Array.isArray(data.time_series_data) && data.time_series_data.length > 0,
 		`${source} has no time_series_data for ${stock}`,
 	);
+	assert(
+		Array.isArray(data.price_series_data) && data.price_series_data.length > 0,
+		`${source} has no price_series_data for ${stock}`,
+	);
+
+	const canonicalPrices = new Map<string, PriceSeriesPoint>();
+	let previousDate = "";
+	let previousAdjusted: number | null = null;
+
+	for (const [index, point] of data.price_series_data.entries()) {
+		assert(point.date, `${source} price point ${index} for ${stock} has no date`);
+		const date = normalizeDate(point.date);
+		assert(
+			date > previousDate,
+			`${source} price_series_data dates are not strictly increasing for ${stock} at ${date}`,
+		);
+		previousDate = date;
+		assert(
+			isFiniteNumber(point.regular),
+			`${source} price point ${date} for ${stock} has invalid regular price`,
+		);
+		assert(
+			isFiniteNumber(point.adjusted),
+			`${source} price point ${date} for ${stock} has invalid adjusted price`,
+		);
+
+		if (previousAdjusted !== null) {
+			const dailyChange = Math.abs(point.adjusted / previousAdjusted - 1);
+			assert(
+				dailyChange <= MAX_ADJUSTED_DAILY_CHANGE,
+				`${source} adjusted price jump for ${stock} on ${date} is ${(dailyChange * 100).toFixed(2)}%`,
+			);
+		}
+
+		canonicalPrices.set(date, point);
+		previousAdjusted = point.adjusted;
+	}
 
 	for (const [index, point] of data.time_series_data.entries()) {
 		assert(point.date, `${source} point ${index} for ${stock} has no date`);
+		const date = normalizeDate(point.date);
+		const canonicalPrice = canonicalPrices.get(date);
 		assert(
-			typeof point.stock_prices?.adjusted === "number",
-			`${source} point ${index} for ${stock} has no adjusted price`,
+			canonicalPrice,
+			`${source} point ${index} for ${stock} on ${date} has no matching canonical daily price`,
 		);
 		assert(
-			typeof point.stock_prices?.regular === "number",
-			`${source} point ${index} for ${stock} has no regular price`,
+			isFiniteNumber(point.stock_prices?.adjusted),
+			`${source} point ${index} for ${stock} has invalid adjusted price`,
+		);
+		assert(
+			isFiniteNumber(point.stock_prices?.regular),
+			`${source} point ${index} for ${stock} has invalid regular price`,
+		);
+		assert(
+			point.stock_prices.adjusted === canonicalPrice.adjusted &&
+				point.stock_prices.regular === canonicalPrice.regular,
+			`${source} point ${index} for ${stock} on ${date} does not match canonical daily price`,
 		);
 		assert(
 			Array.isArray(point.bubble_estimates?.daily_grouped) &&
@@ -98,7 +156,15 @@ function validateCsvArtifacts() {
 
 function validateLocalJson() {
 	const dataDir = join(process.cwd(), "public", "data");
+	assert(
+		existsSync(dataDir),
+		`Missing ${dataDir}. Generate Yahoo JSON first or download the synthetic-yahoo-mat-json artifact before running --json.`,
+	);
 	const files = readdirSync(dataDir).filter((filename) => filename.endsWith(".json"));
+	assert(
+		files.length > 0,
+		`No generated Yahoo JSON files found in ${dataDir}. Generate Yahoo JSON first or download the synthetic-yahoo-mat-json artifact before running --json.`,
+	);
 	for (const stock of YAHOO_STOCK_LIST) {
 		const filename = files.find((file) =>
 			file.startsWith(`bubble_data_${stock}_splitadj_`),

@@ -2,6 +2,11 @@ name: Publish Yahoo Blob JSON
 
 on:
   workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: "Optional regenerate-synthetic-yahoo-json run ID to publish. Defaults to latest non-expired synthetic-yahoo-mat-json artifact."
+        required: false
+        type: string
 
 jobs:
   publish-yahoo-json:
@@ -9,9 +14,45 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Resolve generated JSON artifact run
+        id: resolve_artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$ARTIFACT_RUN_ID" ]; then
+            echo "run_id=$ARTIFACT_RUN_ID" >> "$GITHUB_OUTPUT"
+            echo "Using requested artifact run: $ARTIFACT_RUN_ID"
+            exit 0
+          fi
+
+          echo "Searching recent regenerate-synthetic-yahoo-json runs for synthetic-yahoo-mat-json..."
+          for run_id in $(gh api "repos/${{ github.repository }}/actions/workflows/regenerate-synthetic-yahoo-json.yml/runs?per_page=20" --jq '.workflow_runs[].id'); do
+            artifact_id=$(gh api "repos/${{ github.repository }}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.name == "synthetic-yahoo-mat-json" and .expired == false) | .id' | head -n 1)
+            if [ -n "$artifact_id" ]; then
+              echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+              echo "Resolved artifact from run: $run_id"
+              exit 0
+            fi
+          done
+
+          echo "No non-expired synthetic-yahoo-mat-json artifact found in recent regeneration runs." >&2
+          exit 1
+
+      - name: Download generated JSON artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: synthetic-yahoo-mat-json
+          run-id: ${{ steps.resolve_artifact.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: .
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2

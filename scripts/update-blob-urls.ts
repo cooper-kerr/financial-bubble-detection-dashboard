@@ -61,8 +61,19 @@ function assertBlobUrlMatchesConfiguredStore(url: string, filename: string) {
   }
 }
 
+function contentAddressedJsonBlobName(filename: string, fileHash: string) {
+  const stem = filename.replace(/\.json$/, "");
+  return `yahoo-json/${stem}-${fileHash.slice(0, 12)}.json`;
+}
+
 async function updateBlobUrls() {
   try {
+    if (!existsSync(JSON_OUTPUT_DIR)) {
+      throw new Error(
+        `Missing ${JSON_OUTPUT_DIR}. Generate Yahoo JSON first or download the synthetic-yahoo-mat-json artifact before uploading.`,
+      );
+    }
+
     const urlMapping = (await fetchJsonOrNull<Record<string, string>>(BLOB_MAPPING_URL)) ?? {};
     const previousHashManifest =
       (await fetchJsonOrNull<Record<string, string>>(HASH_MANIFEST_URL)) ?? {};
@@ -74,8 +85,7 @@ async function updateBlobUrls() {
     const jsonFiles = readdirSync(JSON_OUTPUT_DIR).filter(f => f.endsWith(".json"));
 
     if (jsonFiles.length === 0) {
-      console.error("❌ No JSON files found in public/data/ — did bubble_estimator.py run?");
-      process.exit(1);
+      throw new Error("No JSON files found in public/data/ — did bubble_estimator.py run or did the artifact download succeed?");
     }
 
     console.log(`📦 Found ${jsonFiles.length} JSON files to evaluate...`);
@@ -99,9 +109,10 @@ async function updateBlobUrls() {
         continue;
       }
 
-      // Upload to Blob under the same filename, overwriting any previous version.
-      // addRandomSuffix: false keeps URLs deterministic between daily runs.
-      const blob = await put(filename, fileContent, {
+      // Upload changed JSON under a content-addressed name so immediate live
+      // validation and production clients never race stale cached overwrites.
+      const blobName = contentAddressedJsonBlobName(filename, fileHash);
+      const blob = await put(blobName, fileContent, {
         access: "public",
         token: BLOB_READ_WRITE_TOKEN,
         addRandomSuffix: false,
