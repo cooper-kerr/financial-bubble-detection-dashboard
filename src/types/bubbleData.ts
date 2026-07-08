@@ -109,6 +109,34 @@ export const STOCK_LIST = [
 
 export type StockCode = (typeof STOCK_LIST)[number];
 
+export const WRDS_STOCK_LIST = [
+	"SPX",
+	"AAPL",
+	"BAC",
+	"C",
+	"MSFT",
+	"FB",
+	"GE",
+	"INTC",
+	"CSCO",
+	"BABA",
+	"WFC",
+	"JPM",
+	"AMD",
+	"F",
+	"TSLA",
+	"GOOG",
+	"T",
+	"XOM",
+	"AMZN",
+	"MS",
+	"NVDA",
+	"AIG",
+	"GM",
+	"DIS",
+	"BA",
+] as const satisfies readonly StockCode[];
+
 export const YAHOO_STOCK_LIST = [
 	"SPX",
 	"AAPL",

@@ -8,7 +8,7 @@ import type {
 	RegularPriceData,
 	StockCode,
 } from "../types/bubbleData";
-import { YAHOO_STOCK_LIST } from "../types/bubbleData";
+import { WRDS_STOCK_LIST, YAHOO_STOCK_LIST } from "../types/bubbleData";
 import {
 	calculatePriceDifferences,
 	getDateRange,
@@ -19,6 +19,7 @@ import {
 } from "../utils/dataLoader";
 
 const YAHOO_STOCK_SET = new Set<StockCode>(YAHOO_STOCK_LIST);
+const WRDS_STOCK_SET = new Set<StockCode>(WRDS_STOCK_LIST);
 
 interface DashboardState {
 	selectedStock: StockCode;
@@ -139,10 +140,13 @@ export function useDashboardData() {
 			...prev,
 			dataSource,
 			selectedStock:
-				dataSource === "Yahoo Finance" &&
-				!YAHOO_STOCK_SET.has(prev.selectedStock)
-					? "SPX"
-					: prev.selectedStock,
+				dataSource === "Yahoo Finance"
+					? YAHOO_STOCK_SET.has(prev.selectedStock)
+						? prev.selectedStock
+						: "SPX"
+					: WRDS_STOCK_SET.has(prev.selectedStock)
+						? prev.selectedStock
+						: "SPX",
 			startDate: null,
 			endDate: null,
 		}));

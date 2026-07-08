@@ -12,7 +12,7 @@ import type {
 // ─────────────────────────────────────────────────────────────────────────────
 // WRDS (static historical dataset) — hardcoded Blob URLs, these never change
 // ─────────────────────────────────────────────────────────────────────────────
-const WRDS_BLOB_URLS: Record<StockCode, string> = {
+const WRDS_BLOB_URLS: Partial<Record<StockCode, string>> = {
 	AAPL: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AAPL_splitadj_1996to2023.json",
 	AIG: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AIG_splitadj_1996to2023.json",
 	AMD: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_AMD_splitadj_1996to2023.json",
@@ -35,7 +35,6 @@ const WRDS_BLOB_URLS: Record<StockCode, string> = {
 	NVDA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_NVDA_splitadj_1996to2023.json",
 	SPX: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_SPX_splitadj_1996to2023.json",
 	TSLA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_TSLA_splitadj_1996to2023.json",
-	META: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_TWTR_splitadj_1996to2023.json",
 	T: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_T_splitadj_1996to2023.json",
 	WFC: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_WFC_splitadj_1996to2023.json",
 	XOM: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/bubble_data_XOM_splitadj_1996to2023.json",
@@ -44,7 +43,7 @@ const WRDS_BLOB_URLS: Record<StockCode, string> = {
 // ─────────────────────────────────────────────────────────────────────────────
 // Regular price data URLs (static, unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
-const REGULAR_PRICE_URLS: Record<StockCode, string> = {
+const REGULAR_PRICE_URLS: Partial<Record<StockCode, string>> = {
 	AAPL: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/AAPL_data.json",
 	AIG: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/AIG_data.json",
 	AMD: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/AMD_data.json",
@@ -67,7 +66,6 @@ const REGULAR_PRICE_URLS: Record<StockCode, string> = {
 	NVDA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/NVDA_data.json",
 	SPX: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/SPX_data.json",
 	TSLA: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/TSLA_data.json",
-	META: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/TWTR_data.json",
 	T: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/T_data.json",
 	WFC: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/WFC_data.json",
 	XOM: "https://kpjvwsjhhmtk0pdx.public.blob.vercel-storage.com/XOM_data.json",
@@ -125,10 +123,11 @@ export async function loadBubbleData(
 
 		if (dataSource === "WRDS") {
 			// Static historical dataset — URL never changes
-			url = WRDS_BLOB_URLS[stockCode];
-			if (!url) {
+			const wrdsUrl = WRDS_BLOB_URLS[stockCode];
+			if (!wrdsUrl) {
 				throw new Error(`No WRDS URL configured for stock: ${stockCode}`);
 			}
+			url = wrdsUrl;
 		} else {
 			// Yahoo daily dataset — fetch current URL from blob_mapping.json
 			const mapping = await getYahooUrlMapping();
@@ -254,6 +253,12 @@ export async function loadRegularPriceData(
 ): Promise<RegularPriceData[]> {
 	try {
 		const url = REGULAR_PRICE_URLS[stockCode];
+		if (!url) {
+			throw new Error(
+				`No regular price URL configured for stock: ${stockCode}`,
+			);
+		}
+
 		const response = await fetch(url);
 
 		if (!response.ok) {

@@ -13,8 +13,8 @@ import { RotateCcw } from "lucide-react";
 import React from "react";
 import {
 	type DataSource,
-	STOCK_LIST,
 	type StockCode,
+	WRDS_STOCK_LIST,
 	YAHOO_STOCK_LIST,
 } from "../types/bubbleData";
 
@@ -44,7 +44,7 @@ export const DashboardControls = React.memo(function DashboardControls({
 	loading,
 }: DashboardControlsProps) {
 	const availableStocks =
-		dataSource === "Yahoo Finance" ? YAHOO_STOCK_LIST : STOCK_LIST;
+		dataSource === "Yahoo Finance" ? YAHOO_STOCK_LIST : WRDS_STOCK_LIST;
 
 	return (
 		<Card className="mb-6">
