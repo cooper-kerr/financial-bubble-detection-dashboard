@@ -9,12 +9,6 @@ count.txt
 .tanstack
 
 __pycache__/
-data/img/
-data/mat/
-data/csv/*
-!data/csv/.gitkeep
-public/data/bubble_data_*_splitadj_*.json
-blob_mapping.json
 *.mat
 *.npy
 *.log
