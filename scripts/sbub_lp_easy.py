@@ -110,7 +110,6 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
         ))
         for t in range(nperiod)
     )
-    #print("maximum tau‐groups in any period:", max_groups)
     mntau = max_groups
 
     # Create arrays for calibration (dimensions: nperiod x mntau)
@@ -165,8 +164,6 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
     # Loop over each period t ( t = 0, ..., nperiod-1)
     for t in range(nperiod):
 
-        #print(f"\n\n=== Period {t+1}/{nperiod} (date ordinal {da[t]}) ===")
-
         pb = np.floor(10 * (t+1) / (nperiod+1))
         if t > 0 and pb > np.floor(10 * t / (nperiod+1)):
             print(f"{int(pb):2d} ", end='')
@@ -183,7 +180,6 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
         ntau_t = len(taulist_common)
 
         for j in range(ntau_t):
-            #print(f"  -- tau group {j+1}/{len(taulist_common)}: τ={taulist_common[j]:.4f}")
             # For the j-th tau group in period t:
             vput = (tau_t == taulist_common[j]) & (~cp_t)
             np_val = np.sum(vput)
@@ -218,13 +214,11 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
             upbd = np.exp(-np.array(tr[t])[0] * taulist_common[j])
 
             # Compute puts’ “density” and force it into an N×1 column vector
-            #print("    puts:", np_val, "strikes pk.shape=", pk.shape, "prices shape=", put_prices.shape)
             g = anticonv_put(
         +       nint, precis,
         +       pk.flatten(),
         +       put_prices.flatten(),
         +       upbd)
-            #print("    → g.shape=", g.shape)
 
 
             # Now proceed with the local‐polynomial grid for puts
@@ -540,7 +534,6 @@ def sbub_lp_easy(data_file, count_file, yr1, yr2, pow, nstep, opth, hnumsd):
     bubout['up'] = up
     bubout['lc'] = lc
     bubout['uc'] = uc
-    2
     bubout['nkc'] = nkc
     bubout['nkp'] = nkp
     bubout['sumvolc'] = sumvolc

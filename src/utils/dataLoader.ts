@@ -91,7 +91,10 @@ function withCacheBuster(url: string): string {
 }
 
 async function getYahooUrlMapping(): Promise<Record<string, string>> {
-	if (yahooUrlCache && Date.now() - yahooUrlCacheTime < YAHOO_MAPPING_CACHE_MS) {
+	if (
+		yahooUrlCache &&
+		Date.now() - yahooUrlCacheTime < YAHOO_MAPPING_CACHE_MS
+	) {
 		return yahooUrlCache;
 	}
 
@@ -251,7 +254,6 @@ export async function loadRegularPriceData(
 ): Promise<RegularPriceData[]> {
 	try {
 		const url = REGULAR_PRICE_URLS[stockCode];
-		console.log(`Loading regular price data for ${stockCode} from:`, url);
 		const response = await fetch(url);
 
 		if (!response.ok) {

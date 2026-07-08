@@ -1,398 +1,88 @@
 # Financial Bubble Detection Dashboard
 
-A sophisticated web application for visualizing and analyzing financial bubble estimates using options data. This dashboard provides interactive time-series visualizations of bubble probability estimates across different time horizons (tau groups) for major stocks and indices.
+Financial Bubble Detection Dashboard is a React and TypeScript application for exploring option-implied bubble estimates across major equities and the S&P 500. It visualizes put, call, and combined estimates with confidence bands, compares split-adjusted and raw prices, and supports both the historical WRDS research dataset and a newer Yahoo Finance pipeline backed by Vercel Blob storage.
 
-## 🎯 Overview
+## What It Shows
 
-This research dashboard implements a financial bubble detection methodology that analyzes options market data to estimate the probability of asset price bubbles. The system processes put and call options data to generate bubble estimates with confidence intervals across multiple time horizons.
+- Bubble estimates for put options, call options, and combined option chains.
+- Three tau groups that represent short, medium, and longer option horizons.
+- Confidence intervals for each estimate series.
+- Price comparison charts for adjusted versus raw market prices.
+- Data-source switching between historical WRDS output and Yahoo Finance updates.
 
-### Key Features
+## Tech Stack
 
-- **Interactive Time-Series Visualization**: Dynamic Plotly charts with enhanced tooltips and dark mode support
-- **Multi-Asset Analysis**: Support for 26 major stocks and indices (SPX, AAPL, TSLA, etc.)
-- **Tau Group Analysis**: Three different time horizon groups for bubble detection (τ ≈ 0.25, 0.5, 1.0)
-- **Options Data Integration**: Separate analysis for put options, call options, and combined estimates
-- **Price Comparison Charts**: Split-adjusted vs. raw price visualization
-- **Confidence Intervals**: Statistical bounds (upper/lower) for all bubble estimates
-- **Date Range Filtering**: Customizable time period selection with date pickers
-- **Responsive Design**: Modern UI with dark/light theme support and mobile optimization
-- **Cloud Data Storage**: Vercel Blob Storage integration
+- React 19, TypeScript, Vite, and TanStack Router
+- Plotly.js for interactive charts
+- Tailwind CSS, Radix UI primitives, and shadcn-style components
+- Biome for linting and formatting
+- Python and TypeScript scripts for the Yahoo Finance data pipeline
+- Vercel Blob for generated Yahoo CSV and JSON artifacts
 
-## 📊 Methodology
+## Setup
 
-### Bubble Estimates
-
-The dashboard displays bubble probability estimates with three key components:
-
-- **μ (mu)**: Point estimate of bubble probability
-- **lb**: Lower bound of confidence interval
-- **ub**: Upper bound of confidence interval
-
-### Tau Groups
-
-Three time horizon groups are analyzed:
-
-- **Tau Group 1** (τ ≈ 0.25): Short-term bubble detection
-- **Tau Group 2** (τ ≈ 0.5): Medium-term bubble detection
-- **Tau Group 3** (τ ≈ 1.0): Long-term bubble detection
-
-## Data Sources
-### WRDS (1996-2023)
-- **Stock Price Data**: Split-adjusted historical prices 
-- **Options Data**: Put and call options with various expiration dates
-- **Time Series**: Daily bubble estimates with rolling window analysis
-### Yahoo Finance API (2026 - Present)
-- **Stock Price Data**: Uses Yahoo Finance API
-- **Options Data**: Uses Yahoo Finance API
-- **Dashboard**: Separate section on dashboard to show most recent bubble estimates using data from Yahoo Finance
-- **Storage**: Vercel Blob is the durable store for historical Yahoo main CSVs (`csv/optout_<TICKER>.csv`) and published runtime JSON files. Derived `*_count.csv` files are rebuilt from the main CSV during the workflow and kept only as temporary GitHub Actions artifacts.
-
-
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- [Bun](https://bun.sh/) runtime
-- Modern web browser with JavaScript enabled
-
-### Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone <repository-url>
-   cd financial-bubble-detection-dashboard
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   bun install
-   ```
-
-3. **Environment Setup (Optional for Production)**
-
-   For Vercel Blob Storage integration, create a `.env.local` file:
-
-   ```bash
-   BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
-   ```
-
-   See `BLOB_SETUP.md` for detailed setup instructions.
-
-4. **Start the development server**
-
-   ```bash
-   bun run start
-   # or
-   bun run dev
-   ```
-
-   The application will be available at `http://localhost:3000`
-
-## 🏗️ Building for Production
+Use Node.js 20 or newer. The repository includes both `package-lock.json` and `bun.lock`; the commands below use npm because the package lock is present and works with the existing scripts.
 
 ```bash
-bun run build
+git clone <repository-url>
+cd financial-bubble-detection-dashboard
+npm install
+npm run dev
 ```
 
-This creates an optimized production build in the `dist/` directory with TypeScript compilation.
+Open `http://localhost:3000`.
 
-## 📁 Project Structure
-
-```
-financial-bubble-detection-dashboard/
-├── src/
-│   ├── components/              # React components
-│   │   ├── Dashboard.tsx        # Main dashboard component
-│   │   ├── DashboardControls.tsx # Control panel with stock/date selectors
-│   │   ├── PlotlyBubbleChart.tsx # Interactive Plotly charts
-│   │   ├── PriceDifferenceChart.tsx # Price comparison charts
-│   │   ├── LoadingSpinner.tsx   # Loading state component
-│   │   ├── date-picker.tsx      # Custom date picker component
-│   │   ├── theme-provider.tsx   # Theme context provider
-│   │   ├── theme-switcher.tsx   # Dark/light mode toggle
-│   │   └── ui/                  # Reusable UI components (shadcn/ui)
-│   │       ├── button.tsx       # Button component
-│   │       ├── card.tsx         # Card component
-│   │       ├── calendar.tsx     # Calendar component
-│   │       ├── select.tsx       # Select dropdown component
-│   │       └── popover.tsx      # Popover component
-│   ├── hooks/                   # Custom React hooks
-│   │   └── useDashboardData.ts  # Main data management hook
-│   ├── lib/                     # Utility libraries
-│   │   └── utils.ts             # Common utility functions
-│   ├── routes/                  # TanStack Router routes
-│   │   ├── __root.tsx           # Root route layout
-│   │   └── index.tsx            # Home page route
-│   ├── types/                   # TypeScript type definitions
-│   │   └── bubbleData.ts        # Data structure interfaces
-│   ├── utils/                   # Utility functions
-│   │   └── dataLoader.ts        # Data fetching and processing
-│   ├── styles/                  # CSS and styling
-│   │   └── styles.css           # Global styles and Tailwind imports
-│   ├── main.tsx                 # Application entry point
-│   └── routeTree.gen.ts         # Generated route tree (auto-generated)
-├── scripts/                     # Utility scripts
-│   ├── upload-to-blob.ts        # Upload data to Vercel Blob Storage
-│   ├── get-blob-urls.ts         # Retrieve blob URLs
-│   ├── test-blob-fetch.ts       # Test blob connectivity
-│   └── yf_data_scraper.py       # Scrape YF options data, append Blob-backed CSVs
-│   └── sbub_run.py              # Run .mat generation 
-│   └── bubble_estimator.py      # Create YF .json files
-├── docs/                        # Documentation
-│   └── plotly-tooltip-customization-guide.md
-├── public/                      # Static assets
-│   └── data/                    # Generated Yahoo JSON output before Blob upload
-│   └── *.png, *.ico, etc.       # Images and icons
-├── .github/workflows/
-│   └── main.yml                 # Workflow for updating YF points on Dashboard
-├── data/csv/                    # Generated CSV staging artifacts, ignored by git
-├── dist/                        # Production build output
-├── package.json                 # Dependencies and scripts
-├── vite.config.ts               # Vite configuration
-├── tsconfig.json                # TypeScript configuration
-├── biome.json                   # Biome linter/formatter config
-├── components.json              # shadcn/ui configuration
-├── vercel.json                  # Vercel deployment config
-├── BLOB_SETUP.md                # Blob storage setup guide
-└── README.md                    # This file
-```
-
-## 📈 Available Stocks
-
-The dashboard supports analysis for the following assets:
-
-- **Indices**: SPX (S&P 500)
-- **Technology**: AAPL, MSFT, GOOG, AMZN, NVDA, INTC, CSCO, AMD
-- **Financial**: JPM, BAC, C, WFC, MS, AIG
-- **Other Sectors**: TSLA, F, GM, DIS, BA, GE, XOM, T, BABA, TWTR
-
-## 🎨 Features
-
-### Interactive Charts
-
-- **Advanced Plotly Integration**: High-performance interactive charts with zoom, pan, and selection
-- **Enhanced Tooltips**: Custom-styled tooltips with dark mode support and rich formatting
-- **Multi-Series Visualization**: Simultaneous display of all tau groups and stock prices
-- **Time Range Selection**: Date picker controls for custom time period analysis
-- **Chart Types**:
-  - Put Options Bubble Estimates (μ̂_p(τ))
-  - Call Options Bubble Estimates (μ̂_c(τ))
-  - Combined Options Bubble Estimates (μ̂_cp(τ))
-  - Price Comparison Charts (Split-adjusted vs. Raw prices)
-
-### Data Management
-
-- **Cloud Storage**: Vercel Blob Storage for production data hosting
-- **Efficient Loading**: Optimized data fetching with error handling and loading states
-- **Data Processing**: Real-time transformation of bubble estimates and price data
-- **Caching Strategy**: Smart data caching to minimize API calls
-- **Generated Artifacts**: Yahoo CSV staging files, derived count CSVs, generated JSONs, and local `blob_mapping.json` are ignored by git. The nightly workflow recreates them from Blob-backed inputs and uploads changed runtime JSONs back to Blob.
-
-### User Interface
-
-- **Modern Design System**: Built with shadcn/ui components and Tailwind CSS
-- **Responsive Layout**: Optimized for desktop, tablet, and mobile devices
-- **Theme Support**: Seamless light/dark mode toggle with system preference detection
-- **Loading States**: Smooth loading indicators and skeleton screens
-- **Accessibility**: ARIA labels, keyboard navigation, and screen reader support
-- **Error Handling**: Graceful error states with retry functionality
-
-## 🔧 Development
-
-### Available Scripts
+You can also use Bun:
 
 ```bash
-# Development
-bun run dev          # Start development server (alias for start)
-bun run start        # Start development server on port 3000
-bun run build        # Build for production with TypeScript compilation
-bun run serve        # Preview production build
-
-# Testing
-bun run test         # Run Vitest test suite
-
-# Code Quality
-bun run lint         # Check code quality with Biome
-bun run format       # Format code with Biome
-bun run check        # Run both lint and format checks
-
-# Data Management
-bun run upload-data  # Upload JSON files to Vercel Blob Storage
-bun run get-blob-urls # Retrieve current blob URLs
-bun run test-blob    # Test blob storage connectivity
-npm run validate-yahoo-pipeline -- --json # Validate generated local Yahoo JSONs
+bun install
+bun run dev
 ```
 
-### Development Workflow
+## Useful Commands
 
-1. **Local Development**: Use `bun run dev` for hot-reload development
-2. **Code Quality**: Run `bun run check` before committing
-3. **Testing**: Execute `bun run test` to run the test suite
-4. **Data Updates**: Use blob scripts to manage production data
-5. **Production Build**: Test with `bun run build && bun run serve`
-
-## 🛠️ Technology Stack
-
-### Core Technologies
-
-- **Frontend Framework**: React 19 with TypeScript
-- **Build Tool**: Vite 6.1.0 with hot module replacement
-- **Package Manager**: Bun
-- **Routing**: TanStack Router with file-based routing
-
-### UI & Styling
-
-- **Charts**: Plotly.js with react-plotly.js for interactive visualizations
-- **Styling**: Tailwind CSS 4.1.11 with CSS variables
-- **UI Components**: shadcn/ui built on Radix UI primitives
-- **Icons**: Lucide React icon library
-- **Math Rendering**: KaTeX for mathematical expressions
-
-### Development Tools
-
-- **Testing**: Vitest with jsdom environment
-- **Code Quality**: Biome for linting and formatting
-- **Type Checking**: TypeScript 5.7.2 with strict mode
-- **Performance**: Web Vitals monitoring
-
-### Data & Storage
-
-- **Cloud Storage**: Vercel Blob Storage for production data
-- **Data Processing**: Custom utilities for bubble estimate calculations
-
-### Nightly Yahoo Pipeline
-
-The scheduled workflow starts from code plus Blob-backed data, not checked-in generated files:
-
-1. `scripts/yf_data_scraper.py` downloads `csv/optout_<TICKER>.csv` from Vercel Blob, appends the latest Yahoo/FRED/options rows, deduplicates, sorts by parsed `dateraw` plus stable option columns, rebuilds `optout_<TICKER>_count.csv`, and uploads only the changed main CSV back to Blob.
-2. The workflow uploads both the main CSV and rebuilt count CSV as a temporary `yahoo-csv-staging` GitHub Actions artifact.
-3. `scripts/sbub_run.py` consumes those artifacts. For standalone local runs, it downloads only the main CSV from Blob and regenerates the missing count CSV locally.
-4. `scripts/bubble_estimator.py` writes generated JSONs to `public/data/`, and `scripts/update-blob-urls.ts` uploads changed JSONs plus `blob_mapping.json` and `blob_hash_manifest.json` to Vercel Blob.
-
-### Deployment
-
-- **Platform**: Vercel with optimized build configuration
-- **Environment**: Node.js 18+ runtime support
-
-## 📊 Data Format
-
-The application expects JSON data files with the following structure:
-
-### Bubble Data Structure
-
-```typescript
-interface BubbleData {
-  metadata: {
-    stockcode: string; // Stock symbol (e.g., "SPX", "AAPL")
-    start_date_param: string; // Analysis start date
-    end_date_param: string; // Analysis end date
-    rolling_window_days: number; // Rolling window size
-    num_steps: number; // Number of optimization steps
-    optimization_threshold: number; // Convergence threshold
-    h_number_sd: number; // Standard deviation parameter
-    tau_groups_info: TauGroupInfo[]; // Tau group definitions
-    option_types_info: string[]; // Option types analyzed
-    time_series_start_date: string; // Time series start
-    time_series_end_date: string; // Time series end
-  };
-  time_series_data: TimeSeriesDataPoint[];
-}
-
-interface TimeSeriesDataPoint {
-  date: string; // ISO date string
-  stock_prices: {
-    adjusted: number; // Split-adjusted price
-    regular?: number; // Raw price (optional)
-  };
-  bubble_estimates: {
-    daily_grouped: DailyGroupedData[]; // One per tau group
-  };
-}
-
-interface DailyGroupedData {
-  put: BubbleEstimate; // Put option estimates
-  call: BubbleEstimate; // Call option estimates
-  combined: BubbleEstimate; // Combined estimates
-}
-
-interface BubbleEstimate {
-  mu: number; // Point estimate
-  lb: number; // Lower bound
-  ub: number; // Upper bound
-}
-
-interface TauGroupInfo {
-  name: string; // Group name (e.g., "Tau Group 1")
-  range: string; // Range description
-  mean: number; // Mean tau value
-}
+```bash
+npm run dev       # Start Vite on port 3000
+npm run build     # Build the app and run TypeScript checks
+npm run lint      # Run Biome lint rules
+npm run format    # Format files with Biome
+npm run check     # Run Biome checks
+npm run test      # Run Vitest, if tests are present
 ```
 
-### Regular Price Data Structure
+## Usage
 
-```typescript
-interface RegularPriceData {
-  date: string; // ISO date string
-  price: number; // Raw stock price
-}
-```
+1. Start the app with `npm run dev`.
+2. Select a data source: `WRDS` for the historical research dataset or `Yahoo Finance` for the Blob-backed update pipeline.
+3. Choose a ticker such as `SPX`, `AAPL`, `MSFT`, `NVDA`, or `TSLA`.
+4. Adjust the date range to inspect how bubble estimates move across time.
+5. Compare the put, call, combined, and price-difference charts for the same selected asset.
 
-## 🔒 Environment Variables
+## Data Pipeline
 
-For production deployment with Vercel Blob Storage:
+The dashboard consumes generated JSON files that contain daily stock prices and option-derived bubble estimates. Historical WRDS data is treated as static research output. The Yahoo Finance workflow refreshes option-chain CSVs, rebuilds derived count files, runs the estimator, publishes runtime JSON to Vercel Blob, and updates the dashboard through a Blob-hosted mapping file.
+
+Local Blob-writing scripts require secrets in `.env.local`:
 
 ```bash
 BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
+BLOB_BASE_URL=https://your-public-blob-store.example
+FRED_API_KEY=your_fred_api_key
 ```
 
-See `BLOB_SETUP.md` for detailed setup instructions.
+Do not commit `.env.local` or real tokens. GitHub Actions reads production values from repository secrets.
 
-## 🧪 Testing
+## Architecture Notes
 
-The project uses Vitest for testing with jsdom environment:
+- `src/components/Dashboard.tsx` coordinates the main dashboard view.
+- `src/hooks/useDashboardData.ts` owns selected ticker, source, date range, loading state, and chart transformations.
+- `src/utils/dataLoader.ts` loads Blob mappings, fetches generated JSON, and converts raw records into chart-ready series.
+- `src/components/PlotlyBubbleChart.tsx` renders the primary bubble-estimate charts.
+- `src/components/PriceDifferenceChart.tsx` renders adjusted-versus-raw price comparisons.
+- `scripts/` contains the Yahoo Finance ingestion, estimator, Blob upload, reconciliation, and validation utilities.
+- `.github/workflows/` automates nightly and manual data publication.
 
-```bash
-# Run all tests
-bun run test
+## Repository Status
 
-# Run tests in watch mode (development)
-bun run test --watch
+This repository has an intentionally real project history with generated data churn from earlier pipeline iterations. Current generated Yahoo CSVs and JSONs are expected to live in Blob storage or workflow artifacts, not as committed source files. Before sharing or deploying with write access, rotate any previously exposed Blob token and keep all future credentials in GitHub/Vercel secrets.
 
-# Run tests with coverage
-bun run test --coverage
-```
-
-## 📝 License
-
-This project is for research and educational purposes. Please ensure compliance with data usage policies and financial regulations in your jurisdiction.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Run tests and linting (`bun run check && bun run test`)
-4. Commit your changes (`git commit -m 'Add amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
-
-### Development Guidelines
-
-- Follow TypeScript best practices
-- Use Biome for code formatting and linting
-- Write tests for new features
-- Update documentation as needed
-- Ensure responsive design compatibility
-
-## 📞 Support
-
-For questions about the bubble detection methodology or technical implementation, please open an issue in the repository.
-
-## 📚 Additional Resources
-
-- **[BLOB_SETUP.md](./BLOB_SETUP.md)**: Detailed guide for setting up Vercel Blob Storage
-- **[Plotly.js Documentation](https://plotly.com/javascript/)**: Official Plotly documentation
-- **[TanStack Router](https://tanstack.com/router)**: Router documentation
-- **[shadcn/ui](https://ui.shadcn.com/)**: UI component library documentation

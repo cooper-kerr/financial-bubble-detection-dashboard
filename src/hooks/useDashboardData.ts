@@ -91,14 +91,6 @@ export function useDashboardData() {
 						`Regular price data failed to load for ${state.selectedStock}:`,
 						regularData.reason,
 					);
-				} else if (regularPriceData) {
-					console.log(
-						`Regular price data loaded successfully for ${state.selectedStock}:`,
-						{
-							count: regularPriceData.length,
-							sample: regularPriceData.slice(0, 2),
-						},
-					);
 				}
 
 				setState((prev) => ({
