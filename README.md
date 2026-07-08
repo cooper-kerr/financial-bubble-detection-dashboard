@@ -84,4 +84,4 @@ Do not commit `.env.local` or real tokens. GitHub Actions reads production value
 
 ## Repository Status
 
-This repository has an intentionally real project history with generated data churn from earlier pipeline iterations. Current generated Yahoo CSVs and JSONs are expected to live in Vercel Blob storage or workflow artifacts, not as committed source files. Local write credentials should stay in `.env.local`, and production values should stay in GitHub/Vercel secrets.
+This repository has an intentionally real project history with generated data churn from earlier pipeline iterations. Current generated Yahoo CSVs and JSONs are expected to live in Vercel Blob storage or workflow artifacts, not as committed source files.
