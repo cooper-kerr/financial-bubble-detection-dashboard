@@ -10,6 +10,7 @@ from scipy.stats import norm
 import pytz
 import time
 import requests
+import subprocess
 from yahoo_csv_utils import merge_sort_option_data, rebuild_count_frame
 
 # ---------------------------------------------------------------------------
@@ -17,6 +18,8 @@ from yahoo_csv_utils import merge_sort_option_data, rebuild_count_frame
 # ---------------------------------------------------------------------------
 BLOB_BASE_URL = os.getenv("BLOB_BASE_URL")          # public base URL of your Blob store
 BLOB_TOKEN    = os.getenv("BLOB_READ_WRITE_TOKEN")   # read/write token stored in GitHub secrets
+ROOT_DIR = Path(__file__).resolve().parent.parent
+BLOB_CSV_UPLOADER = ROOT_DIR / "scripts" / "upload-csv-to-blob.ts"
 
 def download_csv_from_blob(blob_path: str, local_path: str) -> bool:
     """
@@ -50,20 +53,19 @@ def upload_csv_to_blob(local_path: str, blob_path: str) -> None:
     """
     if not BLOB_TOKEN:
         raise EnvironmentError("BLOB_READ_WRITE_TOKEN environment variable is not set.")
-    url = f"https://blob.vercel-storage.com/{blob_path}"
-    with open(local_path, "rb") as f:
-        content = f.read()
-    headers = {
-        "Authorization": f"Bearer {BLOB_TOKEN}",
-        "Content-Type": "text/csv",
-        "x-content-type": "text/csv",
-    }
-    r = requests.put(url, headers=headers, data=content, timeout=60)
-    if r.status_code in (200, 201):
-        print(f"⬆️  Uploaded {local_path} → blob:{blob_path}")
+
+    tsx_bin = ROOT_DIR / "node_modules" / ".bin" / "tsx"
+    if tsx_bin.exists():
+        command = [str(tsx_bin), str(BLOB_CSV_UPLOADER), local_path, blob_path]
+    else:
+        command = ["npx", "tsx", str(BLOB_CSV_UPLOADER), local_path, blob_path]
+
+    result = subprocess.run(command, text=True, capture_output=True, timeout=120, cwd=ROOT_DIR)
+    if result.returncode == 0:
+        print(f"⬆️  Uploaded {local_path} → {result.stdout.strip()}")
     else:
         raise RuntimeError(
-            f"Blob upload failed for {blob_path}: HTTP {r.status_code} — {r.text}"
+            f"Blob upload failed for {blob_path}: {result.stderr.strip() or result.stdout.strip()}"
         )
 
 
