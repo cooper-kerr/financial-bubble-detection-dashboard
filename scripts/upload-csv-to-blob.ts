@@ -1,5 +1,5 @@
 import { put } from "@vercel/blob";
-import { readFileSync } from "node:fs";
+import { createReadStream } from "node:fs";
 
 const [, , localPath, blobPath] = process.argv;
 const BLOB_READ_WRITE_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
@@ -21,12 +21,13 @@ if (!BLOB_BASE_URL) {
 }
 
 try {
-  const blob = await put(blobPath, readFileSync(localPath), {
+  const blob = await put(blobPath, createReadStream(localPath), {
     access: "public",
     token: BLOB_READ_WRITE_TOKEN,
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "text/csv",
+    multipart: true,
   });
 
   if (!blob.url.startsWith(`${BLOB_BASE_URL}/`)) {
