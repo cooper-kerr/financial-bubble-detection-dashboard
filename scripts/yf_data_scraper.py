@@ -64,9 +64,15 @@ def upload_csv_to_blob(local_path: str, blob_path: str) -> None:
     if result.returncode == 0:
         print(f"⬆️  Uploaded {local_path} → {result.stdout.strip()}")
     else:
-        raise RuntimeError(
-            f"Blob upload failed for {blob_path}: {result.stderr.strip() or result.stdout.strip()}"
-        )
+        error_output = result.stderr.strip() or result.stdout.strip()
+        if "Access denied" in error_output or "Token mismatch" in error_output:
+            print(
+                f"::warning::Skipping Blob CSV upload for {blob_path}; "
+                f"the configured BLOB_READ_WRITE_TOKEN cannot write this Blob resource. "
+                "The updated CSV will still be passed to the next job as a GitHub artifact."
+            )
+            return
+        raise RuntimeError(f"Blob upload failed for {blob_path}: {error_output}")
 
 
 def file_sha256(path: str) -> str | None:
