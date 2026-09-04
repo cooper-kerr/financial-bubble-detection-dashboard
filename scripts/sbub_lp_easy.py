@@ -2,10 +2,16 @@ import warnings
 import numpy as np
 import pandas as pd
 import os
-from anticonv_put import anticonv_put
-from anticonv_call import anticonv_call
-from lpoly2 import lpoly2
-from nw_cov import nw_cov
+try:
+    from anticonv_put import anticonv_put
+    from anticonv_call import anticonv_call
+    from lpoly2 import lpoly2
+    from nw_cov import nw_cov
+except ImportError:
+    from .anticonv_put import anticonv_put
+    from .anticonv_call import anticonv_call
+    from .lpoly2 import lpoly2
+    from .nw_cov import nw_cov
 from datetime import datetime
 
 DEBUG = os.getenv("SBUB_DEBUG") == "1"

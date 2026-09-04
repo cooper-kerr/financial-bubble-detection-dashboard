@@ -2,14 +2,15 @@ import os
 import sys
 import numpy as np
 import scipy.io as sio
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from datetime import datetime, date
 import pandas as pd
 import json
 from pathlib import Path
-import glob
-import yfinance as yf
+
+try:
+    from pipeline_config import STOCK_CODES
+except ImportError:
+    from .pipeline_config import STOCK_CODES
 
 # Point to the folder containing downloaded .mat files (from artifact)
 SCRIPT_DIR = Path(os.environ.get("MAT_ARTIFACT_DIR", "./data/mat")).resolve()
@@ -18,17 +19,8 @@ SCRIPT_DIR = Path(os.environ.get("MAT_ARTIFACT_DIR", "./data/mat")).resolve()
 IMG_DIR = Path("data/img")
 DATA_DIR = Path("public/data")
 
-IMG_DIR.mkdir(parents=True, exist_ok=True)
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
 # Stock list
-stockcodelist = [ "SPX", "AAPL", "BAC", "C", "MSFT", "META", "GE", "INTC", "CSCO", "BABA",
-                  "WFC", "JPM", "AMD", "F", "TSLA", "GOOG", "T", "XOM", "AMZN",
-                  "MS", "NVDA", "AIG", "GM", "DIS", "BA"] 
-
-YAHOO_SYMBOL_MAP = {
-    "SPX": "^SPX",
-}
+stockcodelist = STOCK_CODES
 
 # Helper functions (keeping all existing helper functions)
 def datenum(date_str, fmt='%d-%b-%Y'):
@@ -53,56 +45,42 @@ def nw_cov(q, m):
         cov_val += (1 - j / (m + 1)) * gam[j - 1]
     return cov_val
 
-def to_yahoo_symbol(symbol):
-    return YAHOO_SYMBOL_MAP.get(symbol, symbol)
-
 def finite_price(value):
     if value is None or pd.isna(value):
         return None
     value = float(value)
     return value if np.isfinite(value) else None
 
-def download_canonical_price_series(stockcode, start_date, end_date):
-    yahoo_symbol = to_yahoo_symbol(stockcode)
-    end_exclusive = (pd.to_datetime(end_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-    print(f"Downloading canonical Yahoo prices for {stockcode} ({yahoo_symbol})...")
-
-    history = yf.download(
-        yahoo_symbol,
-        start=start_date,
-        end=end_exclusive,
-        auto_adjust=False,
-        actions=True,
-        progress=False,
-    )
-
+def load_canonical_price_series(stockcode, start_date, end_date, price_dir="data/prices"):
+    """Load the scraper's canonical price handoff without making network calls."""
+    price_path = Path(price_dir) / f"{stockcode}.csv"
+    if not price_path.exists():
+        raise FileNotFoundError(f"Missing canonical price CSV for {stockcode}: {price_path}")
+    history = pd.read_csv(price_path)
+    required = {"date", "regular", "adjusted"}
+    missing = sorted(required - set(history.columns))
+    if missing:
+        raise ValueError(f"Canonical price CSV for {stockcode} missing columns: {missing}")
+    history["date"] = pd.to_datetime(history["date"], format="%Y-%m-%d", errors="coerce")
+    if history["date"].isna().any():
+        raise ValueError(f"Canonical price CSV for {stockcode} contains unparsable dates")
+    history = history[
+        (history["date"] >= pd.to_datetime(start_date))
+        & (history["date"] <= pd.to_datetime(end_date))
+    ].sort_values("date")
     if history.empty:
-        raise ValueError(f"Yahoo returned no daily price history for {stockcode}")
+        raise ValueError(f"Canonical price CSV for {stockcode} has no rows in {start_date}..{end_date}")
 
-    if isinstance(history.columns, pd.MultiIndex):
-        if yahoo_symbol in history.columns.get_level_values(-1):
-            history = history.xs(yahoo_symbol, axis=1, level=-1)
-        else:
-            history.columns = history.columns.get_level_values(0)
-
-    history = history.reset_index()
-    date_column = "Date" if "Date" in history.columns else history.columns[0]
-    if "Close" not in history.columns:
-        raise ValueError(f"Yahoo price history for {stockcode} is missing Close")
-
-    has_adj_close = "Adj Close" in history.columns
     price_series = []
     price_map = {}
 
     for _, row in history.iterrows():
-        regular = finite_price(row.get("Close"))
-        adjusted = finite_price(row.get("Adj Close")) if has_adj_close else regular
-        if adjusted is None:
-            adjusted = regular
+        regular = finite_price(row.get("regular"))
+        adjusted = finite_price(row.get("adjusted"))
         if regular is None or adjusted is None:
-            continue
+            raise ValueError(f"Canonical price CSV for {stockcode} contains non-finite prices")
 
-        date_str = pd.to_datetime(row[date_column]).strftime("%Y-%m-%d")
+        date_str = row["date"].strftime("%Y-%m-%d")
         point = {
             "date": date_str,
             "regular": regular,
@@ -111,10 +89,14 @@ def download_canonical_price_series(stockcode, start_date, end_date):
         price_series.append(point)
         price_map[date_str] = point
 
-    if not price_series:
-        raise ValueError(f"Yahoo price history for {stockcode} had no finite close prices")
-
     return price_series, price_map
+
+
+def canonical_price_for_date(stockcode, price_map, date_key):
+    price = price_map.get(date_key)
+    if price is None:
+        raise ValueError(f"No canonical Yahoo close price for {stockcode} on bubble date {date_key}")
+    return price
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -130,6 +112,9 @@ class NumpyEncoder(json.JSONEncoder):
 
 def process_stock(stockcode):
     """Process a single stock and generate JSON"""
+    import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
+
     print(f"\n{'='*50}")
     print(f"Processing {stockcode}...")
     print(f"{'='*50}")
@@ -138,7 +123,7 @@ def process_stock(stockcode):
     yr1, yr2 = '2025', str(current_year)
     startday = f'01JAN{yr1}'
     endday   = f'31DEC{yr2}'
-    price_series_data, canonical_price_map = download_canonical_price_series(
+    price_series_data, canonical_price_map = load_canonical_price_series(
         stockcode,
         f"{yr1}-01-01",
         datetime.now().strftime("%Y-%m-%d"),
@@ -147,25 +132,19 @@ def process_stock(stockcode):
 
     scode, bubwin0, nstep, opth, hnumsd = stockcode, 63, 200, 0, 5
 
-    # Construct full paths for loading .mat files
-    # The files are now expected to be in the same directory as the script
-    splitadj_files = list(SCRIPT_DIR.glob(f"optout_{stockcode}_*_splitadj_h0_hsd5_nstep200.mat"))
-    if splitadj_files:
-        dataname2_path = splitadj_files[0]
-        print(f"Using split-adjusted .mat file: {dataname2_path}")
-    else:
-        print(f"No split-adjusted .mat file found for {stockcode}")
-        return False
-    
-    ref_files = list(SCRIPT_DIR.glob(f"optout_{stockcode}_*_h0_hsd5_nstep200.mat"))
-    # exclude the split-adjusted file
-    ref_files = [f for f in ref_files if "_splitadj_" not in f.name]
-    if ref_files:
-        reference_file_path = ref_files[0]
-        print(f"Using reference .mat file: {reference_file_path}")
-    else:
-        print(f"No reference .mat file found for {stockcode}")
-        return False
+    dataname = f"optout_{stockcode}_{yr1}to{yr2}_h0_hsd5_nstep200.mat"
+    split_name = f"optout_{stockcode}_{yr1}to{yr2}_splitadj_h0_hsd5_nstep200.mat"
+    reference_file_path = SCRIPT_DIR / dataname
+    dataname2_path = SCRIPT_DIR / split_name
+    missing_mat_files = [
+        str(path) for path in (reference_file_path, dataname2_path) if not path.exists()
+    ]
+    if missing_mat_files:
+        raise FileNotFoundError(
+            f"Missing exact MAT inputs for {stockcode}: {', '.join(missing_mat_files)}"
+        )
+    print(f"Using reference .mat file: {reference_file_path}")
+    print(f"Using split-adjusted .mat file: {dataname2_path}")
 
     try:
         # Load the split-adjusted file for adjout
@@ -185,13 +164,8 @@ def process_stock(stockcode):
         dataout = {name: mat_data1['dataout'][name].item() if mat_data1['dataout'][name].size == 1
                    else mat_data1['dataout'][name]
                    for name in mat_data1['dataout'].dtype.names}
-    except FileNotFoundError:
-        print(f"ERROR: One or more .mat files not found for {stockcode} in the script directory: {SCRIPT_DIR}")
-        print(f"  Missing: {dataname2_path} or {reference_file_path}")
-        return False
     except Exception as e:
-        print(f"An error occurred while loading .mat files for {stockcode}: {e}")
-        return False
+        raise RuntimeError(f"Failed loading MAT files for {stockcode}: {e}") from e
 
     # Explicitly load tau, cp, and dab from dataout.
     tau = dataout['tau']  # Expecting a NumPy array of 1066 elements
@@ -399,11 +373,7 @@ def process_stock(stockcode):
         for idx, t in enumerate(ttr0):
             date_obj = matlab_datenum_to_datetime(dab_numeric[t])
             date_key = date_obj.isoformat()
-            canonical_price = canonical_price_map.get(date_key)
-            if canonical_price is None:
-                raise ValueError(
-                    f"No canonical Yahoo close price for {stockcode} on bubble date {date_key}"
-                )
+            canonical_price = canonical_price_for_date(stockcode, canonical_price_map, date_key)
 
             # Create bubble estimates for this time point
             daily_grouped = []
@@ -527,6 +497,8 @@ def process_stock(stockcode):
     return True
 
 def main():
+    IMG_DIR.mkdir(parents=True, exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     print(f"Processing {len(stockcodelist)} stocks...")
 
     # The creation of directories is moved to the global scope to avoid recreating them on each call,
@@ -534,15 +506,21 @@ def main():
 
     # Process each stock
     successful = []
-    failed = []
+    failed = {}
 
     for i, stockcode in enumerate(stockcodelist, 1):
         print(f"\n[{i}/{len(stockcodelist)}] Processing {stockcode}...")
 
-        if process_stock(stockcode):
+        try:
+            completed = process_stock(stockcode)
+        except Exception as exc:
+            print(f"ERROR: {stockcode}: {exc}", file=sys.stderr)
+            failed[stockcode] = str(exc)
+            completed = False
+        if completed:
             successful.append(stockcode)
         else:
-            failed.append(stockcode)
+            failed.setdefault(stockcode, "processing returned an unsuccessful result")
 
     # Summary report
     print(f"\n{'='*60}")
@@ -558,11 +536,12 @@ def main():
 
     if failed:
         print(f"\nFailed to process:")
-        for stock in failed:
-            print(f"   - {stock}")
+        for stock, error in failed.items():
+            print(f"   - {stock}: {error}")
 
     print(f"\nJSON files saved to: {DATA_DIR}")
     print(f"Images saved to: {IMG_DIR}")
+    return 1 if failed else 0
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

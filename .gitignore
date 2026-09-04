@@ -9,6 +9,16 @@ count.txt
 .tanstack
 
 __pycache__/
+.venv/
+.coverage
+.pytest_cache/
 *.mat
 *.npy
 *.log
+
+# Generated data-pipeline staging and presentation artifacts
+data/csv/
+data/prices/
+data/img/
+data/pipeline-status.json
+public/data/

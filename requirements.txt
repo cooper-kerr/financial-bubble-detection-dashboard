@@ -1,0 +1,8 @@
+pandas==2.2.3
+numpy==2.4.4
+yfinance==0.2.66
+scipy==1.17.1
+fredapi==0.5.2
+matplotlib==3.10.8
+requests==2.32.2
+pytz==2024.1

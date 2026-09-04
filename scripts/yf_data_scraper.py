@@ -1,394 +1,548 @@
+from __future__ import annotations
+
+import hashlib
+import io
 import os
+import random
+import subprocess
+import sys
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
-import yfinance as yf
+from typing import Callable
+
 import numpy as np
 import pandas as pd
-import hashlib
-from datetime import datetime, timedelta
+import pytz
+import requests
+import yfinance as yf
 from fredapi import Fred
 from scipy.stats import norm
-import pytz
-import time
-import requests
-import subprocess
-from yahoo_csv_utils import merge_sort_option_data, rebuild_count_frame
 
-# ---------------------------------------------------------------------------
-# Vercel Blob configuration
-# ---------------------------------------------------------------------------
-BLOB_BASE_URL = os.getenv("BLOB_BASE_URL")          # public base URL of your Blob store
-BLOB_TOKEN    = os.getenv("BLOB_READ_WRITE_TOKEN")   # read/write token stored in GitHub secrets
+try:
+    from market_calendar import is_us_market_session
+    from pipeline_config import STOCK_CODES, YAHOO_SYMBOL_MAP
+    from pipeline_common import PipelineStatus, retry_operation
+    from pipeline_validation import OPTION_COLUMNS, validate_all_tickers
+    from yahoo_csv_utils import merge_sort_option_data, rebuild_count_frame
+except ImportError:
+    from .market_calendar import is_us_market_session
+    from .pipeline_config import STOCK_CODES, YAHOO_SYMBOL_MAP
+    from .pipeline_common import PipelineStatus, retry_operation
+    from .pipeline_validation import OPTION_COLUMNS, validate_all_tickers
+    from .yahoo_csv_utils import merge_sort_option_data, rebuild_count_frame
+
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 BLOB_CSV_UPLOADER = ROOT_DIR / "scripts" / "upload-csv-to-blob.ts"
 
-def download_csv_from_blob(blob_path: str, local_path: str) -> bool:
-    """
-    Download a CSV from Vercel Blob to a local runner path.
-    Returns True when the CSV was downloaded.
-    """
-    if not BLOB_BASE_URL:
-        raise EnvironmentError("BLOB_BASE_URL environment variable is not set.")
-    url = f"{BLOB_BASE_URL}/{blob_path}"
-    try:
-        r = requests.get(url, timeout=30)
-        if r.status_code == 200:
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            with open(local_path, "wb") as f:
-                f.write(r.content)
-            print(f"⬇️  Downloaded {blob_path} from Blob.")
-            return True
-        elif r.status_code == 404:
-            print(f"⚠️  {blob_path} not found in Blob (status {r.status_code}).")
-            return False
-        else:
-            raise RuntimeError(f"Unexpected status {r.status_code} fetching {blob_path}: {r.text}")
-    except Exception as e:
-        raise RuntimeError(f"Could not download {blob_path}: {e}") from e
 
-
-def upload_csv_to_blob(local_path: str, blob_path: str) -> None:
-    """
-    Upload a local CSV to Vercel Blob, overwriting the existing file.
-    Raises on any non-2xx response so the GitHub Action step fails visibly.
-    """
-    if not BLOB_TOKEN:
-        raise EnvironmentError("BLOB_READ_WRITE_TOKEN environment variable is not set.")
-
-    tsx_bin = ROOT_DIR / "node_modules" / ".bin" / "tsx"
-    if tsx_bin.exists():
-        command = [str(tsx_bin), str(BLOB_CSV_UPLOADER), local_path, blob_path]
-    else:
-        command = ["npx", "tsx", str(BLOB_CSV_UPLOADER), local_path, blob_path]
-
-    result = subprocess.run(command, text=True, capture_output=True, timeout=120, cwd=ROOT_DIR)
-    if result.returncode == 0:
-        print(f"⬆️  Uploaded {local_path} → {result.stdout.strip()}")
-    else:
-        error_output = result.stderr.strip() or result.stdout.strip()
-        if "Access denied" in error_output or "Token mismatch" in error_output:
-            print(
-                f"::warning::Skipping Blob CSV upload for {blob_path}; "
-                f"the configured BLOB_READ_WRITE_TOKEN cannot write this Blob resource. "
-                "The updated CSV will still be passed to the next job as a GitHub artifact."
-            )
-            return
-        raise RuntimeError(f"Blob upload failed for {blob_path}: {error_output}")
-
-
-def file_sha256(path: str) -> str | None:
-    """
-    Return the SHA-256 hash of a file if it exists, otherwise None.
-    """
-    if not os.path.exists(path):
-        return None
-    with open(path, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()
-
-# ---------------------------------------------------------------------------
-# Ticker list & config  (unchanged)
-# ---------------------------------------------------------------------------
-Stockcode = [
-    "SPX",
-    "AAPL",
-    "BAC",
-    "C",
-    "MSFT",
-    "GE",
-    "INTC",
-    "CSCO",
-    "BABA",
-    "WFC",
-    "JPM",
-    "AMD",
-    "META",
-    "F",
-    "TSLA",
-    "GOOG",
-    "T",
-    "XOM",
-    "AMZN",
-    "MS",
-    "NVDA",
-    "AIG",
-    "GM",
-    "DIS",
-    "BA",
-]
-
-csv_dir = "data/csv"   # local runner staging directory (temp, not committed to git)
-
-YAHOO_SYMBOL_MAP = {
-    "SPX": "^SPX",
-}
-
-def to_yahoo_symbol(symbol):
+def to_yahoo_symbol(symbol: str) -> str:
     return YAHOO_SYMBOL_MAP.get(symbol, symbol)
 
-# ---------------------------------------------------------------------------
-# FRED initialisation with retry  (unchanged)
-# ---------------------------------------------------------------------------
-MAX_RETRIES = 5
-RETRY_DELAY = 3  # seconds
 
-api_key = os.getenv("FRED_API_KEY")
-if not api_key:
-    raise ValueError("FRED_API_KEY environment variable not set")
+def file_sha256(path: str | Path) -> str | None:
+    file_path = Path(path)
+    return hashlib.sha256(file_path.read_bytes()).hexdigest() if file_path.exists() else None
 
-for attempt in range(1, MAX_RETRIES + 1):
-    try:
-        fred = Fred(api_key=api_key)
-        break
-    except Exception as e:
-        if attempt == MAX_RETRIES:
-            raise RuntimeError(f"Failed to initialize FRED after {MAX_RETRIES} attempts") from e
-        wait = RETRY_DELAY * attempt
-        print(f"Attempt {attempt} failed: {e}. Retrying in {wait}s...")
-        time.sleep(wait)
 
-# ---------------------------------------------------------------------------
-# Main loop  (all scraping/processing logic is unchanged)
-# ---------------------------------------------------------------------------
-for ticker_symbol in Stockcode:
-    yahoo_symbol = to_yahoo_symbol(ticker_symbol)
+def _require_nonempty(value, label: str) -> None:
+    if value is None or not hasattr(value, "empty") or value.empty:
+        raise ValueError(f"{label} returned an empty response")
 
-    print(f"Running scraper for {ticker_symbol}...")
 
-    filesource  = f"optout_{ticker_symbol}"
-    save_folder = csv_dir
-    os.makedirs(save_folder, exist_ok=True)
-
-    ticker  = yf.Ticker(yahoo_symbol)
-    eastern = pytz.timezone("US/Eastern")
-    start_date = "1996-01-01"
-    end_date   = (datetime.now(eastern) + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    historical_data = ticker.history(start=start_date, end=end_date)
-    closing_prices  = historical_data[['Close']].reset_index()
-    closing_prices.rename(columns={'Date': 'date', 'Close': 'snp'}, inplace=True)
-    closing_prices['date'] = pd.to_datetime(closing_prices['date']).dt.tz_localize(None)
-    indexdata_processed = closing_prices
-
-    # ---- Treasury data ----
-    series_id = "DGS1MO"
-    data = fred.get_series(series_id, start_date, end_date)
-    df = pd.DataFrame(data, columns=["tr"])
-    df.index.name = 'date'
-    df = df.reset_index()
-    df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
-    df['tr'] = df['tr'] / 100
-
-    # ---- Options data ----
-    ticker      = yf.Ticker(yahoo_symbol)
-    expirations = ticker.options
-    today       = datetime.now()
-
-    expirations_this_year = [
-        date for date in expirations
-        if today <= datetime.strptime(date, '%Y-%m-%d') <= today + timedelta(days=365)
-    ]
-
-    all_options = pd.DataFrame()
-    for expiration_date in expirations_this_year:
-        try:
-            options = ticker.option_chain(expiration_date)
-
-            calls = options.calls.copy()
-            calls['exdate']  = pd.to_datetime(expiration_date)
-            calls['cp_flag'] = 'C'
-
-            puts = options.puts.copy()
-            puts['exdate']  = pd.to_datetime(expiration_date)
-            puts['cp_flag'] = 'P'
-
-            all_options = pd.concat([all_options, calls, puts], ignore_index=True)
-            print(f"Fetched options data for expiration date: {expiration_date}")
-        except Exception as e:
-            print(f"Error fetching options data for {expiration_date}: {e}")
-
-    if all_options.empty:
-        print(f"⏭️  No option chains returned for {ticker_symbol}; skipping ticker.")
-        continue
-
-    all_options = all_options.rename(columns={'lastTradeDate': 'date'})
-    all_options = all_options[['date', 'exdate', 'cp_flag', 'strike', 'bid', 'ask',
-                               'volume', 'openInterest', 'impliedVolatility']]
-
-    all_options['callprice'] = (all_options['bid'] + all_options['ask']) / 2
-    all_options['date']      = all_options['date'].dt.date
-    cols_to_convert = ['strike', 'bid', 'ask', 'volume', 'openInterest', 'impliedVolatility']
-    all_options[cols_to_convert] = all_options[cols_to_convert].apply(pd.to_numeric, errors='coerce')
-    all_options['strike'] = all_options['strike'] / 1000
-    all_options = all_options[all_options['volume'] > 0]
-    all_options = all_options[(all_options['bid'] >= 0.05) | (all_options['ask'] >= 0.05)]
-    all_options['date']   = pd.to_datetime(all_options['date']).dt.tz_localize(None)
-    all_options['exdate'] = pd.to_datetime(all_options['exdate']).dt.tz_localize(None)
-    all_options['tau']    = (all_options['exdate'] - all_options['date']).dt.days
-    all_options = all_options[(all_options['tau'] > 8) & (all_options['tau'] <= 365)]
-    all_options['tau_years'] = all_options['tau'] / 365
-
-    def classify_maturity_group(tau_years):
-        if tau_years <= 0.25:
-            return '0-3M'
-        elif tau_years <= 0.5:
-            return '3-6M'
+def normalize_price_history(history: pd.DataFrame, ticker: str, yahoo_symbol: str) -> pd.DataFrame:
+    _require_nonempty(history, f"Yahoo history for {ticker}")
+    frame = history.copy()
+    if isinstance(frame.columns, pd.MultiIndex):
+        if yahoo_symbol in frame.columns.get_level_values(-1):
+            frame = frame.xs(yahoo_symbol, axis=1, level=-1)
         else:
-            return '6-12M'
+            frame.columns = frame.columns.get_level_values(0)
+    frame = frame.reset_index()
+    date_column = "Date" if "Date" in frame.columns else frame.columns[0]
+    if "Close" not in frame.columns:
+        raise ValueError(f"Yahoo history for {ticker} is missing Close")
+    regular = pd.to_numeric(frame["Close"], errors="coerce")
+    adjusted = pd.to_numeric(frame["Adj Close"], errors="coerce") if "Adj Close" in frame.columns else regular.copy()
+    dates = pd.to_datetime(frame[date_column], errors="coerce", utc=True).dt.tz_localize(None)
+    normalized = pd.DataFrame({"date": dates, "regular": regular, "adjusted": adjusted})
+    normalized = normalized.replace([np.inf, -np.inf], np.nan).dropna()
+    normalized = normalized.drop_duplicates("date", keep="last").sort_values("date")
+    if normalized.empty:
+        raise ValueError(f"Yahoo history for {ticker} has no finite close prices")
+    return normalized.reset_index(drop=True)
 
-    all_options['maturity_group'] = all_options['tau_years'].apply(classify_maturity_group)
 
-    group_counts  = all_options.groupby(['date', 'cp_flag', 'maturity_group']).size().reset_index(name='n_obs')
-    valid_groups  = group_counts[group_counts['n_obs'] >= 3]
-    all_options   = all_options.merge(
-        valid_groups[['date', 'cp_flag', 'maturity_group']],
-        on=['date', 'cp_flag', 'maturity_group'],
-        how='inner'
+def fetch_price_history(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    *,
+    download: Callable = yf.download,
+    sleep: Callable[[float], None] = time.sleep,
+    randomness: Callable[[], float] = random.random,
+    on_retry: Callable | None = None,
+) -> pd.DataFrame:
+    yahoo_symbol = to_yahoo_symbol(ticker)
+    history = retry_operation(
+        ticker,
+        "yahoo_history",
+        lambda: download(yahoo_symbol, start=start_date, end=end_date, auto_adjust=False, actions=True, progress=False),
+        validate=lambda value: normalize_price_history(value, ticker, yahoo_symbol),
+        sleep=sleep,
+        randomness=randomness,
+        on_retry=on_retry,
     )
+    return normalize_price_history(history, ticker, yahoo_symbol)
 
-    strike_counts  = all_options.groupby(['date', 'cp_flag', 'tau'])['strike'].nunique().reset_index(name='n_strikes')
-    valid_strikes  = strike_counts[strike_counts['n_strikes'] >= 2]
-    all_options    = all_options.merge(
-        valid_strikes[['date', 'cp_flag', 'tau']],
-        on=['date', 'cp_flag', 'tau'],
-        how='inner'
+
+def fetch_fred_series(
+    fred,
+    start_date: str,
+    end_date: str,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    randomness: Callable[[], float] = random.random,
+    on_retry: Callable | None = None,
+) -> pd.DataFrame:
+    def normalize(series) -> pd.DataFrame:
+        _require_nonempty(series, "FRED DGS1MO")
+        frame = pd.DataFrame(series, columns=["tr"]).reset_index()
+        frame.columns = ["date", "tr"]
+        frame["date"] = pd.to_datetime(frame["date"], errors="coerce").dt.tz_localize(None)
+        frame["tr"] = pd.to_numeric(frame["tr"], errors="coerce") / 100
+        frame = frame.dropna(subset=["date", "tr"]).sort_values("date")
+        if frame.empty:
+            raise ValueError("FRED DGS1MO contained no parseable observations")
+        return frame
+
+    series = retry_operation(
+        "ALL",
+        "fred_DGS1MO",
+        lambda: fred.get_series("DGS1MO", start_date, end_date),
+        validate=normalize,
+        sleep=sleep,
+        randomness=randomness,
+        on_retry=on_retry,
     )
+    return normalize(series)
 
-    cleancalldata1 = all_options[(all_options['tau'] > 8) & (all_options['tau'] <= 365)]
-    cleancalldata  = (
-        cleancalldata1
-        .groupby(['date', 'cp_flag', 'tau', 'strike'], as_index=False)
-        .agg(
-            exdate=('exdate', 'max'),
-            callprice=('callprice', lambda x: (x * cleancalldata1.loc[x.index, 'volume']).sum() / cleancalldata1.loc[x.index, 'volume'].sum()),
-            volume=('volume', 'sum'),
-            impliedVolatility=('impliedVolatility', 'mean'),
-        )
+
+def fetch_expirations(ticker: str, yahoo_ticker, *, sleep=time.sleep, randomness=random.random, on_retry=None) -> tuple[str, ...]:
+    def validate(expirations) -> None:
+        if not expirations:
+            raise ValueError(f"Yahoo expirations for {ticker} were empty")
+        for value in expirations:
+            datetime.strptime(value, "%Y-%m-%d")
+
+    result = retry_operation(
+        ticker,
+        "yahoo_expirations",
+        lambda: yahoo_ticker.options,
+        validate=validate,
+        sleep=sleep,
+        randomness=randomness,
+        on_retry=on_retry,
     )
+    return tuple(result)
 
-    indexdata_processed['date'] = pd.to_datetime(indexdata_processed['date']).dt.tz_localize(None)
-    df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
 
-    index_filtered = indexdata_processed[
-        (indexdata_processed['date'] >= start_date) &
-        (indexdata_processed['date'] <= end_date)
-    ]
-
-    index_tr       = pd.merge(index_filtered, df[['date', 'tr']], on='date', how='left')
-    index_tr       = index_tr.rename(columns={'snp': 'price'})
-    index_tr_filled = index_tr.copy()
-    index_tr_filled['tr'] = index_tr_filled['tr'].ffill()
-    indexopt       = pd.merge(cleancalldata, index_tr, on='date', how='inner')
-    indexopt       = indexopt[indexopt['tau'].notna()]
-    indexopt       = indexopt[[
-        'date', 'price', 'tr', 'cp_flag', 'strike', 'callprice',
-        'exdate', 'tau', 'volume', 'impliedVolatility'
-    ]].rename(columns={'impl_volatility': 'iv'})
-
-    indexopt['date'] = pd.to_datetime(indexopt['date'], format='%Y%m%d')
-    indexopt['tr']   = indexopt['tr'].ffill()
-    indexopt['money']  = np.log(indexopt['strike'] * np.exp(-indexopt['tr'] * indexopt['tau'] / 252) / indexopt['price'])
-    indexopt['money2'] = indexopt['strike'] / indexopt['price']
-    indexopt = indexopt.sort_values(by=['date', 'cp_flag', 'exdate', 'strike']).reset_index(drop=True)
-
-    indexopt2 = indexopt
-    indexopt2['taurank0'] = indexopt2.groupby(['date', 'cp_flag'])['tau'].rank(method='dense')
-    indexopt3 = indexopt2[indexopt2['tau'].notna()][[
-        'date', 'cp_flag', 'exdate', 'tau', 'strike', 'price', 'tr',
-        'money', 'callprice', 'volume', 'impliedVolatility'
-    ]].sort_values(by=['date', 'cp_flag', 'tau', 'strike']).reset_index(drop=True)
-
-    indexopt3['delta'] = np.nan
-    indexopt3['date']   = pd.to_datetime(indexopt3['date'], errors='coerce').dt.strftime('%d%b%Y')
-    indexopt3['exdate'] = pd.to_datetime(indexopt3['exdate'], errors='coerce').dt.strftime('%d%b%Y')
-    indexopt3['strike'] = pd.to_numeric(indexopt3['strike'], errors='coerce')
-    indexopt3['tau']    = pd.to_numeric(indexopt3['tau'], errors='coerce')
-    indexopt3['impliedVolatility'] = pd.to_numeric(indexopt3['impliedVolatility'], errors='coerce')
-
-    def calculate_delta(S, K, tau, sigma, r, option_type):
-        if pd.isna(S) or pd.isna(K) or pd.isna(tau) or pd.isna(sigma) or pd.isna(r):
-            return np.nan
-        if tau <= 0 or sigma <= 0:
-            return np.nan
-        d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * tau) / (sigma * np.sqrt(tau))
-        return norm.cdf(d1) if option_type.upper() == 'C' else norm.cdf(d1) - 1
-
-    indexopt3['tau_years'] = indexopt3['tau'] / 365
-    indexopt3['strike']    = indexopt3['strike'] * 1000
-
-    cols_to_num = ['price', 'strike', 'tau_years', 'impliedVolatility', 'tr']
-    indexopt3[cols_to_num] = indexopt3[cols_to_num].apply(pd.to_numeric, errors='coerce')
-
-    indexopt3['delta'] = indexopt3.apply(
-        lambda row: calculate_delta(
-            S=row['price'],
-            K=row['strike'],
-            tau=row['tau_years'],
-            sigma=row['impliedVolatility'],
-            r=row['tr'],
-            option_type=row['cp_flag']
-        ),
-        axis=1
-    )
-    indexopt3 = indexopt3.drop(columns=['tau_years'])
-
-    optcpstats = indexopt3.groupby(['date', 'cp_flag', 'tau']).agg(
-        n=('date', 'count'),
-        minm=('money', 'min'),
-        maxm=('money', 'max'),
-        minstk=('strike', 'min'),
-        maxstk=('strike', 'max')
-    ).reset_index()
-
-    indexopt3.columns = ['dateraw', 'cp_flag', 'exdateraw', 'tauday', 'x', 's', 'tr',
-                         'money', 'oprice', 'volume', 'iv', 'deltachk']
-
-    today_str = datetime.now(eastern).strftime('%d%b%Y')
-    print(indexopt3.tail(5))
-    indexopt3 = indexopt3[indexopt3['dateraw'] == today_str]
-    optcount = indexopt3.groupby('dateraw').size().reset_index(name='count')
-
-    expected_count = optcount['count'].sum()
-    actual_count   = indexopt3.shape[0]
-    if expected_count != actual_count:
-        raise ValueError(
-            f"Mismatch: optcount={expected_count} rows, "
-            f"but indexopt3 has {actual_count} rows for {today_str}"
-        )
-    else:
-        print(f"✅ Row count check passed: {actual_count} rows match optcount for {today_str}")
-
-    # -----------------------------------------------------------------------
-    # File paths  (local runner staging area — NOT committed to git)
-    # -----------------------------------------------------------------------
-    count_file = os.path.join(save_folder, f"{filesource}_count.csv")
-    data_file  = os.path.join(save_folder, f"{filesource}.csv")
-
-    # ⬇️  Pull the existing main CSV from Vercel Blob so we can append today's rows.
-    # Count CSVs are derived locally and handed to the next workflow job as artifacts.
-    if not os.path.exists(data_file):
-        data_ok = download_csv_from_blob(f"csv/{filesource}.csv", data_file)
-        if not data_ok:
-            raise FileNotFoundError(
-                f"Missing historical CSV for {ticker_symbol}: csv/{filesource}.csv. "
-                "The daily pipeline requires Vercel Blob history and will not rebuild from only today's scrape."
+def fetch_option_chain(ticker: str, yahoo_ticker, expiration: str, *, sleep=time.sleep, randomness=random.random, on_retry=None):
+    def validate(chain) -> None:
+        if chain is None or not hasattr(chain, "calls") or not hasattr(chain, "puts"):
+            raise ValueError("malformed option-chain response")
+        if chain.calls.empty or chain.puts.empty:
+            raise ValueError("option-chain response lacks calls or puts")
+        required = {"lastTradeDate", "strike", "bid", "ask", "volume", "openInterest", "impliedVolatility"}
+        for label, frame in (("calls", chain.calls), ("puts", chain.puts)):
+            missing = sorted(required - set(frame.columns))
+            if missing:
+                raise ValueError(f"option-chain {label} missing columns: {missing}")
+            parsed_dates = pd.to_datetime(frame["lastTradeDate"], errors="coerce", utc=True)
+            numeric = frame[["strike", "bid", "ask", "impliedVolatility"]].apply(
+                pd.to_numeric, errors="coerce"
             )
-    else:
-        print(f"📦 Using local artifact for {data_file}")
+            usable = parsed_dates.notna() & np.isfinite(numeric).all(axis=1)
+            if not usable.any():
+                raise ValueError(f"option-chain {label} has no parseable, finite rows")
 
-    data_hash_before = file_sha256(data_file)
+    return retry_operation(
+        ticker,
+        f"yahoo_option_chain:{expiration}",
+        lambda: yahoo_ticker.option_chain(expiration),
+        validate=validate,
+        sleep=sleep,
+        randomness=randomness,
+        on_retry=on_retry,
+    )
 
-    existing_data = pd.read_csv(data_file)
-    indexopt3 = merge_sort_option_data(existing_data, indexopt3)
-    optcount = rebuild_count_frame(indexopt3)
-    indexopt3.to_csv(data_file, index=False)
-    optcount.to_csv(count_file, index=False)
 
-    # ⬆️  Push updated main CSV back to Vercel Blob only if content actually changed.
-    # The derived count CSV remains local and is uploaded only as a GitHub Actions artifact.
-    data_hash_after = file_sha256(data_file)
+def download_csv_from_blob(
+    ticker: str,
+    blob_path: str,
+    local_path: str | Path,
+    *,
+    base_url: str,
+    get: Callable = requests.get,
+    sleep=time.sleep,
+    randomness=random.random,
+    on_retry=None,
+) -> None:
+    if not base_url:
+        raise EnvironmentError("BLOB_BASE_URL environment variable is not set")
 
-    if data_hash_before != data_hash_after:
-        upload_csv_to_blob(data_file,  f"csv/{filesource}.csv")
-    else:
-        print(f"⏭️  No changes detected for csv/{filesource}.csv; skipping Blob upload.")
+    def download() -> bytes:
+        response = get(f"{base_url.rstrip('/')}/{blob_path}", timeout=30)
+        if response.status_code != 200:
+            raise RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
+        if not response.content or not response.content.strip():
+            raise ValueError("Blob returned an empty CSV")
+        parsed = pd.read_csv(io.BytesIO(response.content))
+        if parsed.empty:
+            raise ValueError("Blob returned a CSV with no data rows")
+        missing = sorted(OPTION_COLUMNS - set(parsed.columns))
+        if missing:
+            raise ValueError(f"Blob option CSV missing columns: {missing}")
+        return response.content
 
-    print(f"✅ Finished updating {ticker_symbol}.")
+    content = retry_operation(
+        ticker,
+        f"blob_download:{blob_path}",
+        download,
+        sleep=sleep,
+        randomness=randomness,
+        on_retry=on_retry,
+    )
+    output = Path(local_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(content)
+    print(f"Downloaded {blob_path} from Blob")
+
+
+def upload_csv_to_blob(
+    ticker: str,
+    local_path: str | Path,
+    blob_path: str,
+    *,
+    token: str,
+    run: Callable = subprocess.run,
+    sleep=time.sleep,
+    randomness=random.random,
+    on_retry=None,
+) -> None:
+    if not token:
+        raise EnvironmentError("BLOB_READ_WRITE_TOKEN environment variable is not set")
+    tsx_bin = ROOT_DIR / "node_modules" / ".bin" / "tsx"
+    command = (
+        [str(tsx_bin), str(BLOB_CSV_UPLOADER), str(local_path), blob_path]
+        if tsx_bin.exists()
+        else ["npx", "tsx", str(BLOB_CSV_UPLOADER), str(local_path), blob_path]
+    )
+
+    def upload() -> None:
+        result = run(command, text=True, capture_output=True, timeout=120, cwd=ROOT_DIR)
+        if result.returncode != 0:
+            error = result.stderr.strip() or result.stdout.strip()
+            raise RuntimeError(f"Blob upload failed: {error}")
+        if not result.stdout.strip():
+            raise ValueError("Blob upload returned no destination URL")
+        print(f"Uploaded {local_path} -> {result.stdout.strip()}")
+
+    retry_operation(
+        ticker,
+        f"blob_upload:{blob_path}",
+        upload,
+        sleep=sleep,
+        randomness=randomness,
+        on_retry=on_retry,
+    )
+
+
+def _classify_maturity_group(tau_years: float) -> str:
+    if tau_years <= 0.25:
+        return "0-3M"
+    if tau_years <= 0.5:
+        return "3-6M"
+    return "6-12M"
+
+
+def _calculate_delta(row: pd.Series) -> float:
+    values = [row["price"], row["strike"], row["tau_years"], row["impliedVolatility"], row["tr"]]
+    if any(pd.isna(value) for value in values) or row["tau_years"] <= 0 or row["impliedVolatility"] <= 0:
+        return np.nan
+    d1 = (
+        np.log(row["price"] / row["strike"])
+        + (row["tr"] + 0.5 * row["impliedVolatility"] ** 2) * row["tau_years"]
+    ) / (row["impliedVolatility"] * np.sqrt(row["tau_years"]))
+    return norm.cdf(d1) if row["cp_flag"] == "C" else norm.cdf(d1) - 1
+
+
+def build_current_option_rows(
+    ticker: str,
+    price_history: pd.DataFrame,
+    fred_data: pd.DataFrame,
+    yahoo_ticker,
+    now: datetime,
+    *,
+    sleep=time.sleep,
+    randomness=random.random,
+    on_retry=None,
+) -> pd.DataFrame:
+    expirations = fetch_expirations(ticker, yahoo_ticker, sleep=sleep, randomness=randomness, on_retry=on_retry)
+    now_naive = now.replace(tzinfo=None)
+    eligible = [
+        value for value in expirations
+        if now_naive <= datetime.strptime(value, "%Y-%m-%d") <= now_naive + timedelta(days=365)
+    ]
+    if not eligible:
+        raise ValueError(f"Yahoo returned no expirations within 365 days for {ticker}")
+
+    frames: list[pd.DataFrame] = []
+    for expiration in eligible:
+        chain = fetch_option_chain(
+            ticker, yahoo_ticker, expiration, sleep=sleep, randomness=randomness, on_retry=on_retry
+        )
+        for values, flag in ((chain.calls, "C"), (chain.puts, "P")):
+            frame = values.copy()
+            frame["exdate"] = pd.to_datetime(expiration)
+            frame["cp_flag"] = flag
+            frames.append(frame)
+
+    options = pd.concat(frames, ignore_index=True).rename(columns={"lastTradeDate": "date"})
+    columns = ["date", "exdate", "cp_flag", "strike", "bid", "ask", "volume", "openInterest", "impliedVolatility"]
+    missing = sorted(set(columns) - set(options.columns))
+    if missing:
+        raise ValueError(f"Yahoo option chains for {ticker} missing columns: {missing}")
+    options = options[columns].copy()
+    options["date"] = pd.to_datetime(options["date"], errors="coerce", utc=True).dt.tz_localize(None).dt.normalize()
+    options["exdate"] = pd.to_datetime(options["exdate"], errors="coerce").dt.tz_localize(None)
+    numeric_columns = ["strike", "bid", "ask", "volume", "openInterest", "impliedVolatility"]
+    options[numeric_columns] = options[numeric_columns].apply(pd.to_numeric, errors="coerce")
+    options["callprice"] = (options["bid"] + options["ask"]) / 2
+    options = options.dropna(subset=["date", "exdate", "strike", "callprice", "volume"])
+    options["strike"] = options["strike"] / 1000
+    options = options[(options["volume"] > 0) & ((options["bid"] >= 0.05) | (options["ask"] >= 0.05))]
+    options["tau"] = (options["exdate"] - options["date"]).dt.days
+    options = options[(options["tau"] > 8) & (options["tau"] <= 365)]
+    options["tau_years"] = options["tau"] / 365
+    options["maturity_group"] = options["tau_years"].apply(_classify_maturity_group)
+    group_counts = options.groupby(["date", "cp_flag", "maturity_group"]).size().reset_index(name="n_obs")
+    options = options.merge(group_counts[group_counts["n_obs"] >= 3][["date", "cp_flag", "maturity_group"]])
+    strike_counts = options.groupby(["date", "cp_flag", "tau"])["strike"].nunique().reset_index(name="n_strikes")
+    options = options.merge(strike_counts[strike_counts["n_strikes"] >= 2][["date", "cp_flag", "tau"]])
+
+    clean = options.groupby(["date", "cp_flag", "tau", "strike"], as_index=False).agg(
+        exdate=("exdate", "max"),
+        callprice=("callprice", lambda values: np.average(values, weights=options.loc[values.index, "volume"])),
+        volume=("volume", "sum"),
+        impliedVolatility=("impliedVolatility", "mean"),
+    )
+    market = price_history.rename(columns={"regular": "price"})[["date", "price"]]
+    market = market.merge(fred_data, on="date", how="left").sort_values("date")
+    market["tr"] = market["tr"].ffill()
+    combined = clean.merge(market, on="date", how="inner").dropna(subset=["tr"])
+    combined["money"] = np.log(combined["strike"] * np.exp(-combined["tr"] * combined["tau"] / 252) / combined["price"])
+    combined["tau_years"] = combined["tau"] / 365
+    combined["strike"] = combined["strike"] * 1000
+    combined["delta"] = combined.apply(_calculate_delta, axis=1)
+    combined["date"] = combined["date"].dt.strftime("%d%b%Y")
+    combined["exdate"] = combined["exdate"].dt.strftime("%d%b%Y")
+    combined = combined.rename(columns={
+        "date": "dateraw", "exdate": "exdateraw", "tau": "tauday", "strike": "x",
+        "price": "s", "callprice": "oprice", "impliedVolatility": "iv", "delta": "deltachk",
+    })
+    output_columns = [
+        "dateraw", "cp_flag", "exdateraw", "tauday", "x", "s", "tr", "money",
+        "oprice", "volume", "iv", "deltachk",
+    ]
+    today_label = now.strftime("%d%b%Y")
+    return combined[combined["dateraw"] == today_label][output_columns].reset_index(drop=True)
+
+
+def stage_ticker(
+    ticker: str,
+    fred_data: pd.DataFrame,
+    now: datetime,
+    *,
+    csv_dir: Path,
+    price_dir: Path,
+    base_url: str,
+    download,
+    ticker_factory,
+    get,
+    sleep,
+    randomness,
+    on_retry,
+) -> bool:
+    prices = fetch_price_history(
+        ticker,
+        "1996-01-01",
+        (now + timedelta(days=1)).strftime("%Y-%m-%d"),
+        download=download,
+        sleep=sleep,
+        randomness=randomness,
+        on_retry=on_retry,
+    )
+    price_dir.mkdir(parents=True, exist_ok=True)
+    price_output = prices.copy()
+    price_output["date"] = price_output["date"].dt.strftime("%Y-%m-%d")
+    price_output.to_csv(price_dir / f"{ticker}.csv", index=False)
+    current_rows = build_current_option_rows(
+        ticker,
+        prices,
+        fred_data,
+        ticker_factory(to_yahoo_symbol(ticker)),
+        now,
+        sleep=sleep,
+        randomness=randomness,
+        on_retry=on_retry,
+    )
+    today_date = now.astimezone(pytz.timezone("US/Eastern")).date() if now.tzinfo else now.date()
+    today = pd.Timestamp(today_date)
+    if is_us_market_session(today_date) and today not in set(prices["date"]):
+        newest = prices["date"].max().strftime("%Y-%m-%d")
+        raise ValueError(
+            f"Yahoo price history for {ticker} is stale on active market date {today_date}: newest={newest}"
+        )
+    if current_rows.empty and is_us_market_session(today_date):
+        raise ValueError(
+            f"Yahoo returned no usable current-day option rows for {ticker} on an active price date"
+        )
+
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    data_path = csv_dir / f"optout_{ticker}.csv"
+    if not data_path.exists():
+        download_csv_from_blob(
+            ticker,
+            f"csv/optout_{ticker}.csv",
+            data_path,
+            base_url=base_url,
+            get=get,
+            sleep=sleep,
+            randomness=randomness,
+            on_retry=on_retry,
+        )
+    before_hash = file_sha256(data_path)
+    merged = merge_sort_option_data(pd.read_csv(data_path), current_rows)
+    merged.to_csv(data_path, index=False)
+    rebuild_count_frame(merged).to_csv(csv_dir / f"optout_{ticker}_count.csv", index=False)
+    return before_hash != file_sha256(data_path)
+
+
+def run_pipeline(
+    *,
+    tickers: list[str] = STOCK_CODES,
+    csv_dir: str | Path = "data/csv",
+    price_dir: str | Path = "data/prices",
+    status_path: str | Path = "data/pipeline-status.json",
+    now: datetime | None = None,
+    download: Callable = yf.download,
+    ticker_factory: Callable = yf.Ticker,
+    fred_factory: Callable = Fred,
+    get: Callable = requests.get,
+    run: Callable = subprocess.run,
+    sleep: Callable[[float], None] = time.sleep,
+    randomness: Callable[[], float] = random.random,
+) -> int:
+    statuses = PipelineStatus(tickers)
+    csv_path, price_path = Path(csv_dir), Path(price_dir)
+    changed: dict[str, bool] = {}
+    current_time = now or datetime.now(pytz.timezone("US/Eastern"))
+
+    def fred_retry(_ticker, operation, attempt, exc):
+        for configured_ticker in tickers:
+            statuses.record_retry(configured_ticker, operation, attempt, exc)
+
+    try:
+        api_key = os.getenv("FRED_API_KEY")
+        if not api_key:
+            raise EnvironmentError("FRED_API_KEY environment variable is not set")
+        fred_data = fetch_fred_series(
+            fred_factory(api_key=api_key),
+            "1996-01-01",
+            (current_time + timedelta(days=1)).strftime("%Y-%m-%d"),
+            sleep=sleep,
+            randomness=randomness,
+            on_retry=fred_retry,
+        )
+    except Exception as exc:
+        for status in statuses.tickers.values():
+            status.state, status.error = "failed", str(exc)
+        statuses.write(status_path)
+        print(f"Pipeline failed before ticker staging: {exc}", file=sys.stderr)
+        return 1
+
+    for ticker in tickers:
+        print(f"Staging {ticker}...")
+        try:
+            changed[ticker] = stage_ticker(
+                ticker,
+                fred_data,
+                current_time,
+                csv_dir=csv_path,
+                price_dir=price_path,
+                base_url=os.getenv("BLOB_BASE_URL", ""),
+                download=download,
+                ticker_factory=ticker_factory,
+                get=get,
+                sleep=sleep,
+                randomness=randomness,
+                on_retry=statuses.record_retry,
+            )
+            statuses.tickers[ticker].state = "staged"
+        except Exception as exc:
+            statuses.tickers[ticker].state, statuses.tickers[ticker].error = "failed", str(exc)
+            print(f"FAILED {ticker}: {exc}", file=sys.stderr)
+
+    valid, validation_failures = validate_all_tickers(tickers, csv_path, price_path)
+    for ticker, details in valid.items():
+        status = statuses.tickers[ticker]
+        status.option_rows = int(details["option_rows"])
+        status.price_rows = int(details["price_rows"])
+        status.newest_option_date = str(details["newest_option_date"])
+        status.newest_price_date = str(details["newest_price_date"])
+    for ticker, error in validation_failures.items():
+        statuses.tickers[ticker].state, statuses.tickers[ticker].error = "failed", error
+
+    failed = [ticker for ticker, status in statuses.tickers.items() if status.state == "failed"]
+    if failed:
+        statuses.write(status_path)
+        print(f"Staging validation failed for {len(failed)} ticker(s): {', '.join(failed)}", file=sys.stderr)
+        return 1
+
+    token = os.getenv("BLOB_READ_WRITE_TOKEN", "")
+    for index, ticker in enumerate(tickers):
+        try:
+            if changed[ticker]:
+                upload_csv_to_blob(
+                    ticker,
+                    csv_path / f"optout_{ticker}.csv",
+                    f"csv/optout_{ticker}.csv",
+                    token=token,
+                    run=run,
+                    sleep=sleep,
+                    randomness=randomness,
+                    on_retry=statuses.record_retry,
+                )
+            statuses.tickers[ticker].state = "success"
+        except Exception as exc:
+            statuses.tickers[ticker].state, statuses.tickers[ticker].error = "failed", str(exc)
+            for remaining in tickers[index + 1 :]:
+                statuses.tickers[remaining].state = "failed"
+                statuses.tickers[remaining].error = "upload skipped after an earlier upload failure"
+            statuses.write(status_path)
+            print(f"FAILED {ticker}: {exc}", file=sys.stderr)
+            return 1
+
+    statuses.write(status_path)
+    print(f"Successfully staged, validated, and published {len(tickers)} tickers")
+    return 0
+
+
+def main() -> int:
+    return run_pipeline()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

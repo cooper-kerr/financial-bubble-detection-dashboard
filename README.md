@@ -21,12 +21,12 @@ Financial Bubble Detection Dashboard is a React and TypeScript application for e
 
 ## Setup
 
-Use Node.js 20 or newer. The repository includes both `package-lock.json` and `bun.lock`; the commands below use npm because the package lock is present and works with the existing scripts.
+Use Node.js 24 to match CI. The repository includes both `package-lock.json` and `bun.lock`; production automation uses npm.
 
 ```bash
 git clone <repository-url>
 cd financial-bubble-detection-dashboard
-npm install
+npm ci
 npm run dev
 ```
 
@@ -62,6 +62,8 @@ npm run test      # Run Vitest, if tests are present
 
 The dashboard consumes generated JSON files that contain daily stock prices and option-derived bubble estimates. Historical WRDS data is treated as static research output. The Yahoo Finance workflow refreshes option-chain CSVs, rebuilds derived count files, runs the estimator, publishes runtime JSON to Vercel Blob, and updates the dashboard through a Blob-hosted mapping file.
 
+The production pipeline is strict and all-or-nothing. See the [CI pipeline stability runbook](docs/ci-pipeline-stability.md) for retry behavior, validation gates, incident triage, and recovery commands.
+
 Local Blob-writing scripts require secrets in `.env.local`:
 
 ```bash
@@ -71,6 +73,18 @@ FRED_API_KEY=your_fred_api_key
 ```
 
 Do not commit `.env.local` or real tokens. GitHub Actions reads production values from repository secrets.
+
+For local pipeline development, copy `.env.example` to `.env.local`, create a Python 3.11 virtual environment, and install the exact dependency set:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+set -a
+source .env.local
+set +a
+python -m unittest discover
+```
 
 ## Architecture Notes
 

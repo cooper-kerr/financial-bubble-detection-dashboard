@@ -28,20 +28,40 @@ function sha256(content: Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
-async function fetchJsonOrNull<T>(url: string): Promise<T | null> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
-      throw new Error(`${response.status} ${response.statusText}`);
+const RETRY_DELAYS_MS = [2_000, 4_000, 8_000];
+
+async function retryOperation<T>(
+  operation: string,
+  call: () => Promise<T>,
+  sleep: (delay: number) => Promise<void> = (delay) =>
+    new Promise((resolve) => setTimeout(resolve, delay)),
+  randomness: () => number = Math.random,
+): Promise<T> {
+  let finalError: unknown;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      return await call();
+    } catch (error) {
+      finalError = error;
+      if (attempt === 4) break;
+      const delay = RETRY_DELAYS_MS[attempt - 1] + Math.min(Math.max(randomness(), 0), 1) * 1_000;
+      console.warn(`Retrying operation=${operation} after attempt=${attempt}; sleeping ${delay}ms`, error);
+      await sleep(delay);
     }
-    return (await response.json()) as T;
-  } catch (error) {
-    console.warn(`⚠️  Failed to fetch ${url}; treating as empty state.`, error);
-    return null;
   }
+  const message = finalError instanceof Error ? `${finalError.name}: ${finalError.message}` : String(finalError);
+  throw new Error(`ticker=ALL operation=${operation} attempts=4 final_exception=${message}`);
+}
+
+async function fetchJsonOrNull<T>(url: string): Promise<T | null> {
+  return retryOperation(`blob_download:${url}`, async () => {
+    const response = await fetch(url);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const text = await response.text();
+    if (!text.trim()) throw new Error("Blob returned an empty JSON response");
+    return JSON.parse(text) as T;
+  });
 }
 
 function setGithubOutput(name: string, value: string) {
@@ -64,6 +84,20 @@ function assertBlobUrlMatchesConfiguredStore(url: string, filename: string) {
 function contentAddressedJsonBlobName(filename: string, fileHash: string) {
   const stem = filename.replace(/\.json$/, "");
   return `yahoo-json/${stem}-${fileHash.slice(0, 12)}.json`;
+}
+
+async function verifyUploadedBlob(url: string, expectedHash: string, filename: string) {
+  await retryOperation(`blob_verify:${filename}`, async () => {
+    const response = await fetch(`${url}?verify=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    const content = Buffer.from(await response.arrayBuffer());
+    const actualHash = sha256(content);
+    if (actualHash !== expectedHash) {
+      throw new Error(`content hash mismatch: expected=${expectedHash} actual=${actualHash}`);
+    }
+  });
 }
 
 async function updateBlobUrls() {
@@ -113,14 +147,17 @@ async function updateBlobUrls() {
 
       // Upload changed JSON under a content-addressed name so immediate live
       // validation and production clients never race stale cached overwrites.
-      const blob = await put(blobName, fileContent, {
-        access: "public",
-        token: BLOB_READ_WRITE_TOKEN,
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: "application/json",
-      });
+      const blob = await retryOperation(`blob_upload:${blobName}`, () =>
+        put(blobName, fileContent, {
+          access: "public",
+          token: BLOB_READ_WRITE_TOKEN,
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          contentType: "application/json",
+        }),
+      );
       assertBlobUrlMatchesConfiguredStore(blob.url, filename);
+      await verifyUploadedBlob(blob.url, fileHash, filename);
 
       changedUploads += 1;
       if (urlMapping[stock] !== blob.url) {
@@ -163,27 +200,33 @@ async function updateBlobUrls() {
       return;
     }
 
-    const mappingBlob = await put("blob_mapping.json", mappingJson, {
-      access: "public",
-      token: BLOB_READ_WRITE_TOKEN,
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    });
-    assertBlobUrlMatchesConfiguredStore(mappingBlob.url, "blob_mapping.json");
-
-    console.log(`✅ Uploaded blob_mapping.json to Blob → ${mappingBlob.url}`);
-
-    const hashManifestBlob = await put(HASH_MANIFEST_BLOB_NAME, hashManifestJson, {
-      access: "public",
-      token: BLOB_READ_WRITE_TOKEN,
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    });
+    // The manifest is internal bookkeeping. Publish it before the runtime mapping
+    // so any failure leaves clients on the previous complete dataset.
+    const hashManifestBlob = await retryOperation(`blob_upload:${HASH_MANIFEST_BLOB_NAME}`, () =>
+      put(HASH_MANIFEST_BLOB_NAME, hashManifestJson, {
+        access: "public",
+        token: BLOB_READ_WRITE_TOKEN,
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "application/json",
+      }),
+    );
     assertBlobUrlMatchesConfiguredStore(hashManifestBlob.url, HASH_MANIFEST_BLOB_NAME);
 
     console.log(`✅ Uploaded ${HASH_MANIFEST_BLOB_NAME} to Blob → ${hashManifestBlob.url}`);
+
+    const mappingBlob = await retryOperation("blob_upload:blob_mapping.json", () =>
+      put("blob_mapping.json", mappingJson, {
+        access: "public",
+        token: BLOB_READ_WRITE_TOKEN,
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "application/json",
+      }),
+    );
+    assertBlobUrlMatchesConfiguredStore(mappingBlob.url, "blob_mapping.json");
+
+    console.log(`✅ Uploaded blob_mapping.json to Blob → ${mappingBlob.url}`);
 
     // Also save locally for debugging reference (not committed to git)
     const localMappingPath = join(process.cwd(), "blob_mapping.json");

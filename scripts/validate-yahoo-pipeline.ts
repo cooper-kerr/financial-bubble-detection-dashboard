@@ -6,8 +6,8 @@ import type { BubbleData } from "../src/types/bubbleData";
 
 type Mode = "csv" | "json" | "blob";
 type PriceSeriesPoint = NonNullable<BubbleData["price_series_data"]>[number];
-const BLOB_VALIDATION_ATTEMPTS = 6;
-const BLOB_VALIDATION_DELAY_MS = 10_000;
+const BLOB_VALIDATION_ATTEMPTS = 4;
+const BLOB_VALIDATION_DELAYS_MS = [2_000, 4_000, 8_000];
 const MAX_ADJUSTED_DAILY_CHANGE = 0.25;
 
 const args = new Set(process.argv.slice(2));
@@ -178,7 +178,11 @@ function validateLocalJson() {
 	console.log(`✅ Generated JSON validated for ${YAHOO_STOCK_LIST.length} Yahoo tickers`);
 }
 
-async function validateBlobMapping() {
+async function validateBlobMapping(
+	fetchCall: typeof fetch = fetch,
+	sleepCall: (ms: number) => Promise<unknown> = sleep,
+	randomness: () => number = Math.random,
+) {
 	const envMappingUrl = process.env.VITE_YAHOO_BLOB_MAPPING_URL?.trim();
 	const envBaseUrl = process.env.BLOB_BASE_URL?.trim().replace(/\/+$/, "");
 	const mappingUrl =
@@ -189,7 +193,7 @@ async function validateBlobMapping() {
 
 	for (let attempt = 1; attempt <= BLOB_VALIDATION_ATTEMPTS; attempt++) {
 		try {
-			const mappingResponse = await fetch(withCacheBuster(mappingUrl), {
+			const mappingResponse = await fetchCall(withCacheBuster(mappingUrl), {
 				cache: "no-store",
 			});
 			assert(
@@ -202,7 +206,7 @@ async function validateBlobMapping() {
 				const url = mapping[stock];
 				assert(url, `Yahoo blob mapping is missing ${stock}`);
 
-				const response = await fetch(withCacheBuster(url), {
+				const response = await fetchCall(withCacheBuster(url), {
 					cache: "no-store",
 				});
 				assert(
@@ -219,17 +223,22 @@ async function validateBlobMapping() {
 			if (attempt === BLOB_VALIDATION_ATTEMPTS) {
 				break;
 			}
+			const delay =
+				BLOB_VALIDATION_DELAYS_MS[attempt - 1] +
+				Math.min(Math.max(randomness(), 0), 1) * 1_000;
 			console.warn(
-				`⚠️ Live Yahoo Blob validation attempt ${attempt}/${BLOB_VALIDATION_ATTEMPTS} failed; retrying in ${BLOB_VALIDATION_DELAY_MS / 1000}s.`,
+				`⚠️ Live Yahoo Blob validation attempt ${attempt}/${BLOB_VALIDATION_ATTEMPTS} failed; retrying in ${(delay / 1000).toFixed(2)}s.`,
 			);
-			await sleep(BLOB_VALIDATION_DELAY_MS);
+			await sleepCall(delay);
 		}
 	}
 
-	fail(
+	const finalMessage =
 		lastError instanceof Error
-			? lastError.message
-			: `Live Yahoo Blob mapping validation failed: ${String(lastError)}`,
+			? `${lastError.name}: ${lastError.message}`
+			: String(lastError);
+	fail(
+		`ticker=ALL operation=blob_validation attempts=${BLOB_VALIDATION_ATTEMPTS} final_exception=${finalMessage}`,
 	);
 }
 

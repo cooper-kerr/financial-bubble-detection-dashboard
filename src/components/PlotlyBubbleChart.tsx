@@ -2,13 +2,13 @@ import { useTheme } from "@/components/theme-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import React, { useMemo } from "react";
 import { InlineMath } from "react-katex";
-import Plot from "react-plotly.js";
 import {
 	type ChartDataPoint,
 	type OptionType,
 	TAU_COLORS,
 } from "../types/bubbleData";
 import { LoadingSpinner } from "./LoadingSpinner";
+import { Plot } from "./plotly";
 
 interface PlotlyBubbleChartProps {
 	data: ChartDataPoint[];

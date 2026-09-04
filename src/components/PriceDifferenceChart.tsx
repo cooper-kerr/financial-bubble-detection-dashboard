@@ -1,9 +1,9 @@
 import { useTheme } from "@/components/theme-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import React, { useMemo } from "react";
-import Plot from "react-plotly.js";
 import type { PriceDifferenceDataPoint } from "../types/bubbleData";
 import { LoadingSpinner } from "./LoadingSpinner";
+import { Plot } from "./plotly";
 
 interface PriceDifferenceChartProps {
 	data: PriceDifferenceDataPoint[];
