@@ -7,7 +7,7 @@ import random
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, time as datetime_time, timedelta
 from pathlib import Path
 from typing import Callable
 
@@ -22,23 +22,39 @@ from scipy.stats import norm
 try:
     from market_calendar import is_us_market_session
     from pipeline_config import STOCK_CODES, YAHOO_SYMBOL_MAP
-    from pipeline_common import PipelineStatus, retry_operation
+    from pipeline_common import PipelineOperationError, PipelineStatus, retry_operation
     from pipeline_validation import OPTION_COLUMNS, validate_all_tickers
     from yahoo_csv_utils import merge_sort_option_data, rebuild_count_frame
 except ImportError:
     from .market_calendar import is_us_market_session
     from .pipeline_config import STOCK_CODES, YAHOO_SYMBOL_MAP
-    from .pipeline_common import PipelineStatus, retry_operation
+    from .pipeline_common import PipelineOperationError, PipelineStatus, retry_operation
     from .pipeline_validation import OPTION_COLUMNS, validate_all_tickers
     from .yahoo_csv_utils import merge_sort_option_data, rebuild_count_frame
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 BLOB_CSV_UPLOADER = ROOT_DIR / "scripts" / "upload-csv-to-blob.ts"
+EASTERN = pytz.timezone("US/Eastern")
+# The workflow normally runs at 19:00 Eastern. Before this cutoff, Yahoo's daily
+# bar and same-day option trades may still represent the prior completed session.
+YAHOO_DAILY_BAR_CUTOFF = datetime_time(18, 0)
 
 
 def to_yahoo_symbol(symbol: str) -> str:
     return YAHOO_SYMBOL_MAP.get(symbol, symbol)
+
+
+def expected_yahoo_session(now: datetime) -> date:
+    """Return the latest market session Yahoo should have published by ``now``."""
+    eastern_now = now.astimezone(EASTERN) if now.tzinfo else EASTERN.localize(now)
+    candidate = eastern_now.date()
+    if is_us_market_session(candidate) and eastern_now.time() >= YAHOO_DAILY_BAR_CUTOFF:
+        return candidate
+    candidate -= timedelta(days=1)
+    while not is_us_market_session(candidate):
+        candidate -= timedelta(days=1)
+    return candidate
 
 
 def file_sha256(path: str | Path) -> str | None:
@@ -152,6 +168,8 @@ def fetch_option_chain(ticker: str, yahoo_ticker, expiration: str, *, sleep=time
     def validate(chain) -> None:
         if chain is None or not hasattr(chain, "calls") or not hasattr(chain, "puts"):
             raise ValueError("malformed option-chain response")
+        if chain.calls.empty and chain.puts.empty:
+            raise ValueError("option-chain response lacks calls or puts (both empty)")
         if chain.calls.empty or chain.puts.empty:
             raise ValueError("option-chain response lacks calls or puts")
         required = {"lastTradeDate", "strike", "bid", "ask", "volume", "openInterest", "impliedVolatility"}
@@ -284,6 +302,7 @@ def build_current_option_rows(
     fred_data: pd.DataFrame,
     yahoo_ticker,
     now: datetime,
+    as_of_date: date,
     *,
     sleep=time.sleep,
     randomness=random.random,
@@ -300,15 +319,26 @@ def build_current_option_rows(
 
     frames: list[pd.DataFrame] = []
     for expiration in eligible:
-        chain = fetch_option_chain(
-            ticker, yahoo_ticker, expiration, sleep=sleep, randomness=randomness, on_retry=on_retry
-        )
+        try:
+            chain = fetch_option_chain(
+                ticker, yahoo_ticker, expiration, sleep=sleep, randomness=randomness, on_retry=on_retry
+            )
+        except PipelineOperationError as exc:
+            if str(exc.final_exception) != "option-chain response lacks calls or puts (both empty)":
+                raise
+            print(
+                f"Skipping ticker={ticker} expiration={expiration}: Yahoo returned an empty chain after retries",
+                file=sys.stderr,
+            )
+            continue
         for values, flag in ((chain.calls, "C"), (chain.puts, "P")):
             frame = values.copy()
             frame["exdate"] = pd.to_datetime(expiration)
             frame["cp_flag"] = flag
             frames.append(frame)
 
+    if not frames:
+        raise ValueError(f"Yahoo returned no usable option chains for {ticker}")
     options = pd.concat(frames, ignore_index=True).rename(columns={"lastTradeDate": "date"})
     columns = ["date", "exdate", "cp_flag", "strike", "bid", "ask", "volume", "openInterest", "impliedVolatility"]
     missing = sorted(set(columns) - set(options.columns))
@@ -356,8 +386,8 @@ def build_current_option_rows(
         "dateraw", "cp_flag", "exdateraw", "tauday", "x", "s", "tr", "money",
         "oprice", "volume", "iv", "deltachk",
     ]
-    today_label = now.strftime("%d%b%Y")
-    return combined[combined["dateraw"] == today_label][output_columns].reset_index(drop=True)
+    as_of_label = as_of_date.strftime("%d%b%Y")
+    return combined[combined["dateraw"] == as_of_label][output_columns].reset_index(drop=True)
 
 
 def stage_ticker(
@@ -375,6 +405,7 @@ def stage_ticker(
     randomness,
     on_retry,
 ) -> bool:
+    as_of_date = expected_yahoo_session(now)
     prices = fetch_price_history(
         ticker,
         "1996-01-01",
@@ -394,20 +425,16 @@ def stage_ticker(
         fred_data,
         ticker_factory(to_yahoo_symbol(ticker)),
         now,
+        as_of_date,
         sleep=sleep,
         randomness=randomness,
         on_retry=on_retry,
     )
-    today_date = now.astimezone(pytz.timezone("US/Eastern")).date() if now.tzinfo else now.date()
-    today = pd.Timestamp(today_date)
-    if is_us_market_session(today_date) and today not in set(prices["date"]):
+    expected_price_date = pd.Timestamp(as_of_date)
+    if expected_price_date not in set(prices["date"]):
         newest = prices["date"].max().strftime("%Y-%m-%d")
         raise ValueError(
-            f"Yahoo price history for {ticker} is stale on active market date {today_date}: newest={newest}"
-        )
-    if current_rows.empty and is_us_market_session(today_date):
-        raise ValueError(
-            f"Yahoo returned no usable current-day option rows for {ticker} on an active price date"
+            f"Yahoo price history for {ticker} is stale for expected completed session {as_of_date}: newest={newest}"
         )
 
     csv_dir.mkdir(parents=True, exist_ok=True)
@@ -425,6 +452,11 @@ def stage_ticker(
         )
     before_hash = file_sha256(data_path)
     merged = merge_sort_option_data(pd.read_csv(data_path), current_rows)
+    merged_dates = pd.to_datetime(merged["dateraw"], format="%d%b%Y", errors="coerce")
+    if expected_price_date not in set(merged_dates):
+        raise ValueError(
+            f"Yahoo returned no usable option rows for {ticker} on expected completed session {as_of_date}"
+        )
     merged.to_csv(data_path, index=False)
     rebuild_count_frame(merged).to_csv(csv_dir / f"optout_{ticker}_count.csv", index=False)
     return before_hash != file_sha256(data_path)

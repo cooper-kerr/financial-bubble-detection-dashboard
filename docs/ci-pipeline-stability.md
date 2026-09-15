@@ -2,7 +2,7 @@
 
 ## Contract
 
-The Yahoo production pipeline is all-or-nothing. All 25 configured tickers are required. A run may retry transient upstream failures, but it must not publish stale, partial, or structurally invalid output. A market holiday with no new option rows is valid only when Yahoo option requests succeed and the existing history passes every staging check.
+The Yahoo production pipeline is all-or-nothing. All 25 configured tickers are required. A run may retry transient upstream failures, but it must not publish stale, partial, or structurally invalid output. The expected as-of date is the latest completed US market session: on a trading day the pipeline continues to target the prior session until 18:00 Eastern, allowing for Yahoo's daily-bar publication window. A market holiday with no new option rows is valid only when the existing history already contains the expected completed session and passes every staging check.
 
 The required scraper-to-estimator handoff is:
 
@@ -26,7 +26,7 @@ The GitHub log endpoint used during the original investigation may require repos
 
 ## Retry and validation behavior
 
-Yahoo history, expiration lists, every option chain, FRED DGS1MO, and Blob CSV downloads receive four total attempts. Delays after the first three failures are 2, 4, and 8 seconds plus zero-to-one second jitter. Empty data, missing `Close`, missing call/put chain data, malformed dates, non-200 Blob responses, and empty Blob CSVs count as failed attempts.
+Yahoo history, expiration lists, option chains, FRED DGS1MO, and Blob CSV downloads receive four total attempts. Delays after the first three failures are 2, 4, and 8 seconds plus zero-to-one second jitter. Empty data, missing `Close`, missing call/put chain data, malformed dates, non-200 Blob responses, and empty Blob CSVs count as failed attempts. An advertised expiration for which Yahoo returns both calls and puts empty after all retries is skipped; malformed or one-sided chains remain fatal, and the completed as-of session must still have usable aggregate call/put rows.
 
 FRED DGS1MO is fetched once at the beginning of a run and reused for all tickers. The scraper fetches canonical prices and stages every option/count/price file locally. Before the first CSV upload, validation checks:
 

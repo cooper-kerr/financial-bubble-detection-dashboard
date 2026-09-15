@@ -108,6 +108,40 @@ class RetryTests(unittest.TestCase):
             )
         self.assertEqual(yahoo_ticker.option_chain.call_count, 4)
 
+    def test_build_rows_skips_only_a_fully_empty_expiration(self):
+        def chain_frame():
+            return pd.DataFrame({
+                "lastTradeDate": ["2025-01-02"] * 3,
+                "strike": [99.0, 100.0, 101.0],
+                "bid": [1.0, 1.0, 1.0],
+                "ask": [1.2, 1.2, 1.2],
+                "volume": [10, 10, 10],
+                "openInterest": [100, 100, 100],
+                "impliedVolatility": [0.2, 0.2, 0.2],
+            })
+
+        good_chain = SimpleNamespace(calls=chain_frame(), puts=chain_frame())
+        empty_chain = SimpleNamespace(calls=pd.DataFrame(), puts=pd.DataFrame())
+        yahoo_ticker = SimpleNamespace(
+            options=("2025-02-21", "2025-03-21"),
+            option_chain=mock.Mock(side_effect=lambda expiration: (
+                good_chain if expiration == "2025-02-21" else empty_chain
+            )),
+        )
+        rows = scraper.build_current_option_rows(
+            "AAPL",
+            pd.DataFrame({"date": pd.to_datetime(["2025-01-02"]), "regular": [100.0]}),
+            pd.DataFrame({"date": pd.to_datetime(["2025-01-02"]), "tr": [0.04]}),
+            yahoo_ticker,
+            datetime(2025, 1, 2, 19),
+            datetime(2025, 1, 2).date(),
+            sleep=lambda _delay: None,
+            randomness=lambda: 0,
+        )
+        self.assertFalse(rows.empty)
+        self.assertEqual(set(rows["cp_flag"]), {"C", "P"})
+        self.assertEqual(yahoo_ticker.option_chain.call_count, 5)
+
     def test_malformed_fred_response_is_retryable(self):
         fred = SimpleNamespace(get_series=mock.Mock(side_effect=[
             pd.Series(["bad"], index=["not-a-date"]),
@@ -175,7 +209,7 @@ class StagingTests(unittest.TestCase):
             self.assertEqual((csv_dir / "optout_AAPL.csv").read_text(), original)
             validate_ticker_staging("AAPL", csv_dir, price_dir)
 
-    def test_stale_history_on_active_market_day_fails(self):
+    def test_before_cutoff_uses_previous_completed_session(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             csv_dir, price_dir = self.write_staging(root)
@@ -184,13 +218,36 @@ class StagingTests(unittest.TestCase):
             })
             with mock.patch.object(scraper, "fetch_price_history", return_value=prices), mock.patch.object(
                 scraper, "build_current_option_rows", return_value=pd.DataFrame(columns=OPTION_COLUMNS)
-            ), self.assertRaisesRegex(ValueError, "stale on active market date 2025-01-03"):
-                scraper.stage_ticker(
+            ):
+                changed = scraper.stage_ticker(
                     "AAPL", pd.DataFrame(), datetime(2025, 1, 3),
                     csv_dir=csv_dir, price_dir=price_dir, base_url="unused",
                     download=mock.Mock(), ticker_factory=mock.Mock(), get=mock.Mock(),
                     sleep=lambda _delay: None, randomness=lambda: 0, on_retry=None,
                 )
+            self.assertFalse(changed)
+
+    def test_stale_history_after_cutoff_on_active_market_day_fails(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            csv_dir, price_dir = self.write_staging(root)
+            prices = pd.DataFrame({
+                "date": pd.to_datetime(["2025-01-02"]), "regular": [100.0], "adjusted": [99.0]
+            })
+            with mock.patch.object(scraper, "fetch_price_history", return_value=prices), mock.patch.object(
+                scraper, "build_current_option_rows", return_value=pd.DataFrame(columns=OPTION_COLUMNS)
+            ), self.assertRaisesRegex(ValueError, "stale for expected completed session 2025-01-03"):
+                scraper.stage_ticker(
+                    "AAPL", pd.DataFrame(), datetime(2025, 1, 3, 19),
+                    csv_dir=csv_dir, price_dir=price_dir, base_url="unused",
+                    download=mock.Mock(), ticker_factory=mock.Mock(), get=mock.Mock(),
+                    sleep=lambda _delay: None, randomness=lambda: 0, on_retry=None,
+                )
+
+    def test_expected_session_skips_weekends_and_honors_publish_cutoff(self):
+        self.assertEqual(scraper.expected_yahoo_session(datetime(2025, 1, 3, 17)), datetime(2025, 1, 2).date())
+        self.assertEqual(scraper.expected_yahoo_session(datetime(2025, 1, 3, 19)), datetime(2025, 1, 3).date())
+        self.assertEqual(scraper.expected_yahoo_session(datetime(2025, 1, 5, 19)), datetime(2025, 1, 3).date())
 
     def test_market_calendar_distinguishes_good_friday(self):
         self.assertFalse(is_us_market_session(datetime(2026, 4, 3).date()))
