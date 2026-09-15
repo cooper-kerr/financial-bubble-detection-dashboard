@@ -108,7 +108,7 @@ class RetryTests(unittest.TestCase):
             )
         self.assertEqual(yahoo_ticker.option_chain.call_count, 4)
 
-    def test_build_rows_skips_only_a_fully_empty_expiration(self):
+    def test_build_rows_skips_an_expiration_missing_one_side(self):
         def chain_frame():
             return pd.DataFrame({
                 "lastTradeDate": ["2025-01-02"] * 3,
@@ -121,11 +121,11 @@ class RetryTests(unittest.TestCase):
             })
 
         good_chain = SimpleNamespace(calls=chain_frame(), puts=chain_frame())
-        empty_chain = SimpleNamespace(calls=pd.DataFrame(), puts=pd.DataFrame())
+        incomplete_chain = SimpleNamespace(calls=chain_frame(), puts=pd.DataFrame())
         yahoo_ticker = SimpleNamespace(
             options=("2025-02-21", "2025-03-21"),
             option_chain=mock.Mock(side_effect=lambda expiration: (
-                good_chain if expiration == "2025-02-21" else empty_chain
+                good_chain if expiration == "2025-02-21" else incomplete_chain
             )),
         )
         rows = scraper.build_current_option_rows(

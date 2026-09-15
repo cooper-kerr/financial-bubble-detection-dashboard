@@ -26,7 +26,7 @@ The GitHub log endpoint used during the original investigation may require repos
 
 ## Retry and validation behavior
 
-Yahoo history, expiration lists, option chains, FRED DGS1MO, and Blob CSV downloads receive four total attempts. Delays after the first three failures are 2, 4, and 8 seconds plus zero-to-one second jitter. Empty data, missing `Close`, missing call/put chain data, malformed dates, non-200 Blob responses, and empty Blob CSVs count as failed attempts. An advertised expiration for which Yahoo returns both calls and puts empty after all retries is skipped; malformed or one-sided chains remain fatal, and the completed as-of session must still have usable aggregate call/put rows.
+Yahoo history, expiration lists, option chains, FRED DGS1MO, and Blob CSV downloads receive four total attempts. Delays after the first three failures are 2, 4, and 8 seconds plus zero-to-one second jitter. Empty data, missing `Close`, missing call/put chain data, malformed dates, non-200 Blob responses, and empty Blob CSVs count as failed attempts. An advertised expiration for which Yahoo omits calls or puts after all retries is discarded as an incomplete expiration; malformed chains remain fatal, and the completed as-of session must still have usable aggregate call/put rows from the remaining expirations.
 
 FRED DGS1MO is fetched once at the beginning of a run and reused for all tickers. The scraper fetches canonical prices and stages every option/count/price file locally. Before the first CSV upload, validation checks:
 

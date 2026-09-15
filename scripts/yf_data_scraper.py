@@ -324,10 +324,15 @@ def build_current_option_rows(
                 ticker, yahoo_ticker, expiration, sleep=sleep, randomness=randomness, on_retry=on_retry
             )
         except PipelineOperationError as exc:
-            if str(exc.final_exception) != "option-chain response lacks calls or puts (both empty)":
+            chain_error = str(exc.final_exception)
+            if chain_error not in {
+                "option-chain response lacks calls or puts",
+                "option-chain response lacks calls or puts (both empty)",
+            }:
                 raise
             print(
-                f"Skipping ticker={ticker} expiration={expiration}: Yahoo returned an empty chain after retries",
+                f"Skipping ticker={ticker} expiration={expiration}: "
+                f"Yahoo returned an incomplete chain after retries ({chain_error})",
                 file=sys.stderr,
             )
             continue
